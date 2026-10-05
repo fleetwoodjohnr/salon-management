@@ -30,34 +30,45 @@ each.
 | Market research | Competitor discovery from OpenStreetMap (names/places only), prices you observe or import (with source and date), quartiles, outliers, recency/distance rules and an evidence-quality rating. Census and BLS context kept separate from prices. |
 | Safety | Separate workspaces (including a clearly labelled demo), automatic and manual backups with checksums, verified restore, migration backups, portable CSV export, audit log. |
 
-## Install
+## Download
 
-Download the package for your system from the release (or build it — see below).
+**[Download the latest release](https://github.com/fleetwoodjohnr/salon-management/releases/latest)**,
+then choose the file for your system:
+
+| System | File |
+|---|---|
+| Windows 10 / 11 | `Salon.Resource.Manager_<version>_x64-setup.exe` (or the `.msi`) |
+| macOS 11+ (Apple Silicon and Intel) | `Salon.Resource.Manager_<version>_universal.dmg` |
+| Fedora | `…x86_64.rpm` |
+| Ubuntu 22.04+ / Debian | `…amd64.deb` |
+| Other Linux | `…amd64.AppImage` |
+
+## Install
 
 **Fedora (RPM)**
 
 ```sh
-sudo dnf install "./Salon Resource Manager-0.1.0-1.x86_64.rpm"
+sudo dnf install ./Salon.Resource.Manager-0.1.0-1.x86_64.rpm
 ```
 
 **Ubuntu 22.04 / 24.04 (DEB)**
 
 ```sh
-sudo apt install "./Salon Resource Manager_0.1.0_amd64.deb"
+sudo apt install ./Salon.Resource.Manager_0.1.0_amd64.deb
 ```
 
 **Any recent Linux (AppImage)**
 
 ```sh
-chmod +x "Salon Resource Manager_0.1.0_amd64.AppImage"
-"./Salon Resource Manager_0.1.0_amd64.AppImage"
+chmod +x Salon.Resource.Manager_0.1.0_amd64.AppImage
+./Salon.Resource.Manager_0.1.0_amd64.AppImage
 ```
 
 The packages depend on the system WebKitGTK 4.1 and GTK 3 (installed automatically by dnf/apt).
 
 **Windows 10 / 11**
 
-Run `Salon Resource Manager_0.1.0_x64-setup.exe`. It installs for your user only (no administrator
+Run `Salon.Resource.Manager_0.1.0_x64-setup.exe`. It installs for your user only (no administrator
 rights) and adds a Start-menu entry. The installer isn't code-signed, so SmartScreen may say
 "Windows protected your PC": choose *More info → Run anyway*. The app uses Microsoft Edge WebView2,
 which Windows 11 and up-to-date Windows 10 already have; if it's missing, the installer downloads it.
@@ -65,7 +76,7 @@ Uninstall from *Settings → Apps*.
 
 **macOS 11 or later (Apple Silicon and Intel)**
 
-Open `Salon Resource Manager_0.1.0_universal.dmg` and drag the app to Applications. The app isn't
+Open `Salon.Resource.Manager_0.1.0_universal.dmg` and drag the app to Applications. The app isn't
 notarized by Apple (that needs a paid developer account), so the first time macOS refuses to open it:
 open *System Settings → Privacy & Security*, scroll to the message about Salon Resource Manager and
 choose *Open Anyway*.
@@ -136,7 +147,10 @@ see the script for its one-time setup). **macOS** builds need a Mac:
 
 **GitHub Actions** (`.github/workflows/ci.yml`): every push runs the Rust tests on Linux, Windows
 and macOS, builds unsigned installers for all three systems, launches each once as a smoke test, and
-attaches the installers to the run (*Actions → CI → the run → Artifacts*).
+attaches the installers to the run (*Actions → CI → the run → Artifacts*). Pushing a version tag
+(`git tag v0.2.0 && git push origin v0.2.0`, after bumping the version in `package.json`,
+`src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`) also publishes a GitHub Release with all the
+installers attached.
 
 This repository's own development used rootless toolbox containers (no host changes):
 `scripts/tb` (Fedora 44) and `scripts/tb-ubuntu` (Ubuntu 22.04).
