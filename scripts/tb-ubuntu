@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Run a command in the Ubuntu 22.04 toolbox (older glibc, for .deb/AppImage builds that run on
+# Ubuntu 22.04+ and newer distros). Uses a separate Cargo target dir from the Fedora builds.
+exec toolbox run -c srm-ubuntu env PATH="$HOME/.local/srm-node/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin" CARGO_TARGET_DIR="$PWD/src-tauri/target-ubuntu" "$@"

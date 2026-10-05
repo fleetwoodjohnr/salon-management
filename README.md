@@ -11,8 +11,9 @@ appointments, sales, sales tax and profitability in one place on your own comput
 - **Honest numbers.** Missing tax information is never treated as 0%. Market statistics are never
   passed off as prices. Every dashboard figure can be traced to the records behind it.
 
-MIT licensed. Linux (Fedora, Ubuntu) is the primary, tested platform. Windows and macOS build
-configurations are included but have **not** been tested (see [docs/test-report.md](docs/test-report.md)).
+MIT licensed. Linux (Fedora, Ubuntu) is the primary, tested platform. Windows and macOS installers
+are built too; see [docs/test-report.md](docs/test-report.md) for exactly what has been verified on
+each.
 
 ## What it does
 
@@ -53,6 +54,21 @@ chmod +x "Salon Resource Manager_0.1.0_amd64.AppImage"
 ```
 
 The packages depend on the system WebKitGTK 4.1 and GTK 3 (installed automatically by dnf/apt).
+
+**Windows 10 / 11**
+
+Run `Salon Resource Manager_0.1.0_x64-setup.exe`. It installs for your user only (no administrator
+rights) and adds a Start-menu entry. The installer isn't code-signed, so SmartScreen may say
+"Windows protected your PC": choose *More info → Run anyway*. The app uses Microsoft Edge WebView2,
+which Windows 11 and up-to-date Windows 10 already have; if it's missing, the installer downloads it.
+Uninstall from *Settings → Apps*.
+
+**macOS 11 or later (Apple Silicon and Intel)**
+
+Open `Salon Resource Manager_0.1.0_universal.dmg` and drag the app to Applications. The app isn't
+notarized by Apple (that needs a paid developer account), so the first time macOS refuses to open it:
+open *System Settings → Privacy & Security*, scroll to the message about Salon Resource Manager and
+choose *Open Anyway*.
 
 Start it from your applications menu ("Salon Resource Manager") or run `salon-resource-manager`.
 On first start, create a business workspace or open the demo workspace to look around.
@@ -111,6 +127,17 @@ npx tauri build --bundles deb,appimage  # build on Ubuntu 22.04 for the widest c
 
 Packages land in `src-tauri/target/release/bundle/`. Build `.deb`/AppImage on the oldest system you
 want to support (glibc is forward- but not backward-compatible).
+
+**Windows** installers can be built on Windows (`npx tauri build --bundles nsis,msi`, needs the
+Visual Studio C++ build tools) or cross-compiled on Linux with `scripts/build-windows.sh` (NSIS only;
+see the script for its one-time setup). **macOS** builds need a Mac:
+`rustup target add aarch64-apple-darwin x86_64-apple-darwin` then
+`npx tauri build --target universal-apple-darwin --bundles app,dmg`.
+
+**GitHub Actions** (`.github/workflows/ci.yml`): every push runs the Linux checks. *Actions → CI → Run
+workflow* (or pushing a `v*` tag) also runs the Rust tests on Windows and macOS, builds unsigned
+installers for all three systems, launches each once as a smoke test, and attaches the installers
+to the run.
 
 This repository's own development used rootless toolbox containers (no host changes):
 `scripts/tb` (Fedora 44) and `scripts/tb-ubuntu` (Ubuntu 22.04).

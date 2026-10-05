@@ -1,0 +1,136 @@
+# Continuous integration.
+# - Every push / pull request: frontend checks and Rust tests on Linux.
+# - "Run workflow" (manual) or a v* tag: Rust tests on Linux, Windows and macOS, then unsigned
+#   installers for all three, each launched once on its runner as a smoke test.
+#   (Kept off ordinary pushes because macOS minutes count 10x against a private repo's free quota.)
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit && npx vitest run
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')) && '["ubuntu-22.04","windows-latest","macos-latest"]' || '["ubuntu-22.04"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: System packages (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl file libssl-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+      - run: npm ci
+      - name: Build frontend (embedded by the Rust build)
+        run: npx vite build
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  build:
+    needs: [frontend, test]
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            args: --bundles deb,appimage,rpm
+          - os: windows-latest
+            args: --bundles nsis,msi
+          - os: macos-latest
+            args: --target universal-apple-darwin --bundles app,dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: System packages (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl file libssl-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev xvfb
+      - run: npm ci
+      - name: Build installers (unsigned; macOS ad-hoc signed)
+        run: npx tauri build ${{ matrix.args }}
+
+      # Smoke tests: start the app with a fresh data folder, check it is still running after 15 s
+      # and created its folders, then stop it.
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          export SRM_DATA_DIR="$RUNNER_TEMP/srm-smoke"
+          xvfb-run -a src-tauri/target/release/salon-resource-manager & sleep 15
+          pgrep -f target/release/salon-resource-manager
+          test -d "$SRM_DATA_DIR/workspaces" && test -d "$SRM_DATA_DIR/backups"
+          pkill -f target/release/salon-resource-manager
+      - name: Smoke test (Windows, silent install then launch)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $exe = "$env:LOCALAPPDATA\Salon Resource Manager\salon-resource-manager.exe"
+          if (-not (Test-Path $exe)) { Get-ChildItem "$env:LOCALAPPDATA\Salon Resource Manager" -ErrorAction SilentlyContinue; throw "Installed exe not found" }
+          $env:SRM_DATA_DIR = "$env:RUNNER_TEMP\srm-smoke"
+          $p = Start-Process $exe -PassThru
+          Start-Sleep 15
+          if ($p.HasExited) { throw "App exited early with code $($p.ExitCode)" }
+          if (-not (Test-Path "$env:SRM_DATA_DIR\workspaces")) { throw "Data folders not created" }
+          Stop-Process $p
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          APP=$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          lipo -archs "$APP/Contents/MacOS/salon-resource-manager"
+          export SRM_DATA_DIR="$RUNNER_TEMP/srm-smoke"
+          "$APP/Contents/MacOS/salon-resource-manager" & PID=$!
+          sleep 15
+          kill -0 $PID
+          test -d "$SRM_DATA_DIR/workspaces" && test -d "$SRM_DATA_DIR/backups"
+          kill $PID
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: salon-resource-manager-${{ runner.os }}
+          path: |
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.rpm
+            src-tauri/target/**/release/bundle/**/*.AppImage
+            src-tauri/target/**/release/bundle/**/*-setup.exe
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*.dmg
+          if-no-files-found: error

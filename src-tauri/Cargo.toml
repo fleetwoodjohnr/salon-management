@@ -1,0 +1,44 @@
+[package]
+name = "salon-resource-manager"
+version = "0.1.0"
+description = "Salon Resource Manager — offline costing, inventory, pricing and sales for salon professionals"
+authors = ["Salon Resource Manager contributors"]
+license = "MIT"
+edition = "2021"
+
+[lib]
+name = "srm_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.40", features = ["bundled"] }
+rust_decimal = { version = "1.43", features = ["serde-with-str"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+zip = { version = "8", default-features = false, features = ["deflate"] }
+sha2 = "0.11"
+csv = "1.4"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "query"] }
+keyring = "4"
+tokio = { version = "1", features = ["sync", "time", "macros"] }
+
+[dev-dependencies]
+rust_decimal_macros = "1.40"
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

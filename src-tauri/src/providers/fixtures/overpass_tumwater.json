@@ -1,0 +1,248 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-10-04T19:43:50Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 5997392214,
+  "lat": 46.9988637,
+  "lon": -122.9161582,
+  "tags": {
+    "addr:city": "Tumwater",
+    "addr:housenumber": "5312",
+    "addr:postcode": "98512",
+    "addr:state": "WA",
+    "addr:street": "Littlerock Road Southwest",
+    "addr:unit": "102",
+    "brand": "Great Clips",
+    "brand:wikidata": "Q5598967",
+    "female": "yes",
+    "male": "yes",
+    "name": "Great Clips",
+    "opening_hours": "Mo-Fr 09:00-19:00; Sa 09:00-18:00; Su 09:00-17:00",
+    "shop": "hairdresser",
+    "website": "https://salons.greatclips.com/us/wa/tumwater/5312-littlerock-rd-sw"
+  }
+},
+{
+  "type": "node",
+  "id": 5997430219,
+  "lat": 46.9978843,
+  "lon": -122.9154018,
+  "tags": {
+    "female": "yes",
+    "male": "yes",
+    "name": "Perfect Look",
+    "opening_hours": "Mo-Fr 10:00-17:00; Sa 09:00-17:00; Su 11:00-16:00",
+    "shop": "hairdresser"
+  }
+},
+{
+  "type": "node",
+  "id": 5997430266,
+  "lat": 46.9996264,
+  "lon": -122.9153792,
+  "tags": {
+    "female": "yes",
+    "male": "yes",
+    "name": "Jack & Jill's - A Children's Salon",
+    "opening_hours": "Mo-Sa 10:00-18:00; Su 11:00-17:00",
+    "shop": "hairdresser"
+  }
+},
+{
+  "type": "node",
+  "id": 5999504123,
+  "lat": 47.0005692,
+  "lon": -122.9175516,
+  "tags": {
+    "beauty": "nails",
+    "name": "Nail Creations",
+    "shop": "beauty"
+  }
+},
+{
+  "type": "node",
+  "id": 5999580606,
+  "lat": 46.9991797,
+  "lon": -122.9193651,
+  "tags": {
+    "beauty": "nails",
+    "name": "Legacy Nails Spa",
+    "shop": "beauty"
+  }
+},
+{
+  "type": "node",
+  "id": 5999580611,
+  "lat": 46.9994890,
+  "lon": -122.9193615,
+  "tags": {
+    "name": "HairMasters",
+    "shop": "hairdresser"
+  }
+},
+{
+  "type": "node",
+  "id": 6507265957,
+  "lat": 47.0014058,
+  "lon": -122.9106831,
+  "tags": {
+    "name": "Barber Shop",
+    "shop": "hairdresser"
+  }
+},
+{
+  "type": "node",
+  "id": 6507265959,
+  "lat": 47.0012579,
+  "lon": -122.9107766,
+  "tags": {
+    "name": "Marnie's Salon",
+    "shop": "hairdresser"
+  }
+},
+{
+  "type": "node",
+  "id": 6981755079,
+  "lat": 46.9834287,
+  "lon": -122.9042747,
+  "tags": {
+    "beauty": "nails",
+    "name": "Lexy’s Nails",
+    "shop": "beauty"
+  }
+},
+{
+  "type": "node",
+  "id": 7722287747,
+  "lat": 46.9827530,
+  "lon": -122.9054628,
+  "tags": {
+    "addr:city": "Tumwater",
+    "addr:housenumber": "7205",
+    "addr:postcode": "98501-7267",
+    "addr:state": "WA",
+    "addr:street": "Old Highway 99 SW",
+    "addr:unit": "103",
+    "check_date:currency:XBT": "2026-03-16",
+    "contact:facebook": "https://www.facebook.com/cuttersbarbershop",
+    "contact:instagram": "https://www.instagram.com/_cuttersbarbershop",
+    "currency:XBT": "yes",
+    "hairdresser": "barber",
+    "name": "Cutter's Barbershop",
+    "opening_hours": "Tu-Fr 11:00-17:00",
+    "payment:lightning": "yes",
+    "payment:lightning:operator": "square",
+    "payment:lightning_contactless": "no",
+    "payment:onchain": "no",
+    "phone": "+1-360-810-0409",
+    "shop": "hairdresser",
+    "website": "https://cutters-barbershop.com"
+  }
+},
+{
+  "type": "node",
+  "id": 9193958156,
+  "lat": 46.9934569,
+  "lon": -122.9074044,
+  "tags": {
+    "addr:city": "TUMWATER",
+    "addr:housenumber": "6140",
+    "addr:postcode": "98501",
+    "addr:state": "WA",
+    "addr:street": "Capitol Blvd SE",
+    "addr:unit": "Suite A",
+    "beauty": "tanning",
+    "name": "Bikini Bottom Tanning Salon",
+    "opening_hours": "Mo-Fr 11:00-18:00; Su off; Sa 10:00-16:00",
+    "phone": "+1-360-688-8576",
+    "shop": "beauty",
+    "website": "https://bikinibottomtanning.com/index.php"
+  }
+},
+{
+  "type": "node",
+  "id": 9201179688,
+  "lat": 46.9934817,
+  "lon": -122.9073232,
+  "tags": {
+    "addr:city": "TUMWATER",
+    "addr:housenumber": "6140",
+    "addr:postcode": "98501",
+    "addr:state": "WA",
+    "addr:street": "Capitol Boulevard South East",
+    "addr:unit": "Suite B",
+    "female:signed": "no",
+    "male:signed": "no",
+    "name": "Salon Salon",
+    "opening_hours": "We,Th 11:00-19:00; Fr,Sa 09:00-16:00",
+    "shop": "hairdresser"
+  }
+},
+{
+  "type": "node",
+  "id": 9201179690,
+  "lat": 46.9934840,
+  "lon": -122.9071526,
+  "tags": {
+    "addr:city": "TUMWATER",
+    "addr:housenumber": "6140",
+    "addr:postcode": "98501",
+    "addr:state": "WA",
+    "addr:street": "Capitol Boulevard South East",
+    "female:signed": "no",
+    "male:signed": "no",
+    "name": "Cliper's Barber Shop",
+    "opening_hours": "\"by appointment\"",
+    "shop": "hairdresser"
+  }
+},
+{
+  "type": "node",
+  "id": 9201179692,
+  "lat": 46.9934701,
+  "lon": -122.9069889,
+  "tags": {
+    "addr:city": "TUMWATER",
+    "addr:housenumber": "6140",
+    "addr:postcode": "98501",
+    "addr:state": "WA",
+    "addr:street": "Capitol Boulevard South East",
+    "addr:unit": "Suite E",
+    "beauty": "nails",
+    "check_date:opening_hours": "2024-01-23",
+    "name": "Oasis Nail Bar",
+    "opening_hours:signed": "no",
+    "shop": "beauty"
+  }
+},
+{
+  "type": "way",
+  "id": 633459890,
+  "center": {
+    "lat": 47.0160188,
+    "lon": -122.9068643
+  },
+  "tags": {
+    "addr:city": "Tumwater",
+    "addr:housenumber": "131",
+    "addr:postcode": "98512",
+    "addr:state": "WA",
+    "addr:street": "North 2nd Avenue Southwest",
+    "building": "commercial",
+    "name": "Linda's Hair Design",
+    "opening_hours": "Tu-Fr 09:00-17:00",
+    "phone": "+1-360-357-4499",
+    "shop": "hairdresser",
+    "website": "http://www.lindashairdesign.com/"
+  }
+}
+
+  ]
+}

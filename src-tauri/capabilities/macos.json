@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "macos-print",
+  "description": "macOS only: the WebView has no native window.print, so Tauri routes it through this command.",
+  "platforms": ["macOS"],
+  "windows": ["main"],
+  "permissions": ["core:webview:allow-print"]
+}

@@ -1,0 +1,212 @@
+:root {
+  --srm-canvas: #f4f3f6;
+  --srm-rule: #e4e0e8;
+  --srm-ink-soft: #5d5466;
+  --srm-good: var(--mantine-color-teal-8);
+  --srm-bad: var(--mantine-color-red-8);
+  --srm-warn: var(--mantine-color-yellow-9);
+  --srm-brand: var(--mantine-color-mulberry-8);
+}
+:root[data-mantine-color-scheme="dark"] {
+  --srm-canvas: #18141d;
+  --srm-rule: #3e3648;
+  --srm-ink-soft: #a89eb2;
+  --srm-good: var(--mantine-color-teal-4);
+  --srm-bad: var(--mantine-color-red-4);
+  --srm-warn: var(--mantine-color-yellow-4);
+  --srm-brand: var(--mantine-color-mulberry-2);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  background: var(--srm-canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Page titles and headline figures use Bodoni Moda: the beauty-trade voice of the app,
+   kept to these two places so the working UI stays quiet. */
+.srm-page-title {
+  font-family: "Bodoni Moda Variable", Georgia, serif;
+  font-weight: 600;
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-optical-sizing: auto;
+}
+.srm-figure {
+  font-family: "Bodoni Moda Variable", Georgia, serif;
+  font-weight: 600;
+  font-variant-numeric: lining-nums;
+  line-height: 1.1;
+}
+
+/* Numbers in tables, breakdowns and inputs line up. */
+.mantine-Table-table,
+.srm-num,
+.mantine-DataTable-root {
+  font-variant-numeric: tabular-nums;
+}
+.srm-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.srm-brand {
+  color: var(--srm-brand);
+}
+
+.srm-main {
+  background: var(--srm-canvas);
+}
+
+/* Breakdown rows: label left, amount right, hairline between groups. */
+.srm-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0;
+}
+.srm-breakdown-total {
+  border-top: 1px solid var(--srm-rule);
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  font-weight: 650;
+}
+
+.srm-nav-section {
+  font-size: var(--mantine-font-size-xs);
+  color: var(--srm-ink-soft);
+  padding: 0.75rem 0.75rem 0.25rem;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media print {
+  body,
+  .srm-main {
+    background: #fff !important;
+  }
+  .srm-no-print,
+  .mantine-AppShell-navbar,
+  .mantine-AppShell-header {
+    display: none !important;
+  }
+  .mantine-AppShell-main {
+    padding: 0 !important;
+  }
+}
+
+/* Receive-stock line: one wide row of the essentials, then a quiet row for storage/lot/expiry. */
+.srm-receive-line {
+  padding-bottom: var(--mantine-spacing-sm);
+  border-bottom: 1px solid var(--srm-rule);
+}
+.srm-receive-main {
+  display: grid;
+  grid-template-columns: minmax(220px, 2.4fr) 90px 100px minmax(140px, 1fr) 120px minmax(150px, 1fr) 32px;
+  gap: var(--mantine-spacing-xs);
+  align-items: start;
+}
+.srm-receive-landed {
+  text-align: right;
+  padding-top: 4px;
+}
+
+/* Calendar: an appointment book — fine quarter-hour rules, stronger hour lines. */
+.srm-calendar .rbc-time-view,
+.srm-calendar .rbc-month-view {
+  border-color: var(--srm-rule);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--mantine-color-body);
+}
+.srm-calendar .rbc-timeslot-group {
+  border-bottom: 1px solid var(--srm-rule);
+  min-height: 64px;
+}
+.srm-calendar .rbc-time-slot {
+  border-top: 1px dotted color-mix(in srgb, var(--srm-rule) 60%, transparent);
+}
+.srm-calendar .rbc-day-slot .rbc-time-slot:first-child {
+  border-top: none;
+}
+.srm-calendar .rbc-time-content,
+.srm-calendar .rbc-time-header-content,
+.srm-calendar .rbc-day-bg,
+.srm-calendar .rbc-header,
+.srm-calendar .rbc-time-header.rbc-overflowing,
+.srm-calendar .rbc-time-content > * + * > * {
+  border-color: var(--srm-rule);
+}
+.srm-calendar .rbc-header {
+  padding: 8px 4px;
+  font-weight: 600;
+  font-size: var(--mantine-font-size-sm);
+}
+.srm-calendar .rbc-label {
+  font-size: var(--mantine-font-size-xs);
+  color: var(--srm-ink-soft);
+}
+.srm-calendar .rbc-today {
+  background: color-mix(in srgb, var(--mantine-color-mulberry-1) 35%, transparent);
+}
+:root[data-mantine-color-scheme="dark"] .srm-calendar .rbc-today {
+  background: color-mix(in srgb, var(--mantine-color-mulberry-9) 25%, transparent);
+}
+.srm-calendar .rbc-current-time-indicator {
+  background: var(--mantine-color-mulberry-6);
+  height: 2px;
+}
+.srm-calendar .rbc-event.srm-event {
+  background: color-mix(in srgb, var(--srm-ev) 18%, var(--mantine-color-body));
+  border: none;
+  border-left: 3px solid var(--srm-ev);
+  color: var(--mantine-color-text);
+  border-radius: 6px;
+  font-size: var(--mantine-font-size-xs);
+}
+.srm-calendar .rbc-event.srm-event-cancelled,
+.srm-calendar .rbc-event.srm-event-no_show {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.srm-calendar .rbc-event.srm-event-completed {
+  border-left-style: double;
+  border-left-width: 4px;
+}
+.srm-calendar .rbc-event:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+}
+
+@media print {
+  .srm-print-sheet {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}
+
+/* Dashboard grid */
+.srm-grid-editing .srm-widget {
+  outline: 1px dashed var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+.srm-grid .react-grid-item.react-grid-placeholder {
+  background: var(--mantine-color-mulberry-3);
+  border-radius: 12px;
+}
+@media print {
+  .srm-grid .react-grid-item {
+    break-inside: avoid;
+  }
+}

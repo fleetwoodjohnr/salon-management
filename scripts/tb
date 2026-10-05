@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Run a command inside the Fedora build toolbox with the user's Rust toolchain on PATH.
+exec toolbox run -c "${SRM_TOOLBOX:-srm-fedora}" env PATH="$HOME/.cargo/bin:/usr/bin:/bin" "$@"

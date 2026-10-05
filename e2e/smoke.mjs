@@ -1,0 +1,63 @@
+// Slice 1 walkthrough: workspace → onboarding → profiles → settings. Saves screenshots.
+import { launch, clickText, fill, choose, waitText, stopDisplay } from "./harness.mjs";
+const dataDir = process.argv[2];
+const app = await launch({ dataDir });
+const b = app.browser;
+try {
+  await waitText(b, "Set up your business");
+  await app.shot("01-welcome");
+  await fill(b, "Business name", "Rowan & Ash Hair Studio");
+  await clickText(b, "Create workspace");
+  await waitText(b, "Four short steps");
+  await app.shot("02-setup-business");
+  await clickText(b, "Save and continue");
+  await waitText(b, "Street address");
+  await fill(b, "Street address", "6500 Linderson Way SW");
+  await fill(b, "City", "Tumwater");
+  await choose(b, "State", "WA");
+  await fill(b, "ZIP code", "98501");
+  await app.shot("03-setup-location");
+  await clickText(b, "Save and continue");
+  await waitText(b, "Opening hours set the default");
+  await app.shot("04-setup-hours");
+  await clickText(b, "Save and continue");
+  await waitText(b, "Realistic billable utilization");
+  await fill(b, "Monthly rent share", "1200");
+  await fill(b, "Other monthly overhead", "320");
+  await app.shot("05-setup-profile");
+  await clickText(b, "Create profile");
+  await waitText(b, "You're set up.");
+  await clickText(b, "Go to dashboard");
+  await waitText(b, "Dashboard");
+  await b.url(b.getUrl ? (await b.getUrl()).replace(/#.*/, "#/profiles") : "");
+  await waitText(b, "Owner pay per hour");
+  await app.shot("06-profiles");
+  await clickText(b, "Me");
+  await waitText(b, "What this profile costs");
+  await app.shot("07-profile-editor");
+  await fill(b, "Realistic billable utilization", "0");
+  await waitText(b, "no billable hours");
+  await app.shot("08-profile-invalid");
+  await fill(b, "Realistic billable utilization", "80");
+  await clickText(b, "Save profile");
+  await waitText(b, "Version 2, saved");
+  await b.url((await b.getUrl()).replace(/#.*/, "#/settings?tab=workspaces"));
+  await waitText(b, "Backups of");
+  await clickText(b, "Back up now");
+  await waitText(b, "manual");
+  await app.shot("09-settings-backups");
+  await b.url((await b.getUrl()).replace(/#.*/, "#/settings?tab=activity"));
+  await waitText(b, "saved as version 2");
+  await app.shot("10-activity");
+  await (await b.$('[aria-label="Toggle color theme"]')).click();
+  await b.url((await b.getUrl()).replace(/#.*/, "#/profiles/1"));
+  await waitText(b, "What this profile costs");
+  await app.shot("11-profile-editor-light");
+  console.log("smoke ok");
+} catch (e) {
+  await app.shot("fail");
+  throw e;
+} finally {
+  await app.close();
+  stopDisplay();
+}
