@@ -19,7 +19,7 @@ WebKitGTK 2.50, glibc 2.35). Install tests used separate clean containers (`srm-
 | `.deb`: build on Ubuntu 22.04, install and launch in clean Ubuntu 22.04 and 24.04 containers | **Passed** |
 | AppImage: launch on Fedora 44 and Ubuntu 24.04 | **Passed** |
 | Windows installer (`…_x64-setup.exe`): cross-compiled on Linux | **Built**; the Rust suite compiled for Windows passed under Wine (88/88); silent install and uninstall worked under Wine. The app itself has **not** been run on Windows |
-| macOS (`.dmg`) and Windows on real machines | **Not run yet**: needs the GitHub Actions workflow (see [Windows and macOS](#windows-and-macos)) |
+| Windows and macOS on GitHub Actions runners ([CI run #2](https://github.com/fleetwoodjohnr/salon-management/actions/runs/37251648909), commit `aee9250`) | **Passed**: Rust tests on Windows and macOS; NSIS, MSI and universal `.dmg` built; Windows silent install plus launch, and macOS launch with signature and architecture checks |
 
 ## Automated tests (Rust)
 
@@ -159,7 +159,23 @@ NSIS 3.11 in the Fedora toolbox):
 - silently install the Windows build and launch it, launch the macOS app and check its ad-hoc
   signature and architectures, and confirm each one starts and creates its data folders.
 
-**These CI checks have not run yet.** This section will be updated with their results.
+**Result, 2026-10-05:** [CI run #2](https://github.com/fleetwoodjohnr/salon-management/actions/runs/37251648909)
+on commit `aee9250` passed all 9 jobs in about 20 minutes:
+
+| Job | Runner | Result |
+|---|---|---|
+| Rust tests | `ubuntu-22.04`, `windows-latest`, `macos-latest` | Passed on all three (`cargo test` exited 0, so every non-ignored test passed) |
+| Build Windows `nsis,msi` | `windows-latest` | Built. Smoke test passed: `setup.exe /S` installed to `%LOCALAPPDATA%\Salon Resource Manager`; the installed app was still running after 15 s and had created its data folders |
+| Build macOS `universal-apple-darwin` `app,dmg` | `macos-latest` | Built. Smoke test passed: `codesign --verify --deep --strict` accepted the ad-hoc signature; `lipo` listed the architectures; the app was still running after 15 s and had created its data folders |
+| Build Linux `deb,appimage,rpm` | `ubuntu-22.04` | Built. Smoke test under Xvfb passed |
+
+The installers are attached to the run as artifacts (Windows 13 MB, macOS 15 MB, Linux 104 MB),
+kept until 2027-01-03.
+
+What this does **not** cover:
+- The Windows runner is Windows Server, not a Windows 10/11 desktop.
+- Neither runner ran the end-to-end workflow, printing or the OS keyring.
+- No person has used the app on either system.
 
 macOS-specific changes made without being able to run them:
 - `core:webview:allow-print`, granted on macOS only, because Tauri routes `window.print` through
@@ -169,8 +185,8 @@ macOS-specific changes made without being able to run them:
 
 ## Not tested
 
-- **Windows and macOS on real machines** until the GitHub Actions run above completes; even then,
-  only the listed smoke checks (no end-to-end workflow, printing or keyring tests on those systems).
+- **Windows and macOS beyond the CI smoke checks above**: no end-to-end workflow, printing, keyring
+  or hands-on use on those systems; no Windows 10/11 desktop (the CI runner is Windows Server).
 - A physical Wayland desktop session (tests used X11 via Xvfb on a Wayland host).
 - Live Census Data API calls (needs a key) and the BLS v2 key path.
 - Saving a PDF through the GTK print dialog.

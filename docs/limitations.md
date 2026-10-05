@@ -62,7 +62,8 @@ Things the app deliberately doesn't do, can't do with free data, or hasn't been 
   macOS app is only ad-hoc signed and not notarized (macOS blocks the first open until you choose
   *Open Anyway*). Both need paid certificates.
 - The Windows installer built on Linux is NSIS only; the `.msi` comes from a Windows machine or CI.
-- Windows and macOS verification is limited to what's listed in the test report.
+- Windows and macOS were verified only by the automated CI checks in the test report (build, unit
+  tests, install and launch on GitHub runners), not by hands-on use.
 - The GTK print dialog opens from the app, but saving a PDF through it wasn't automated in testing.
 - The real-app end-to-end tests run on an X11 virtual display; they weren't run on a physical
   Wayland session.

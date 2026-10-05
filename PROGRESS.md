@@ -90,5 +90,6 @@ Working log so development can resume across sessions. Newest entries at the bot
   1e-25 drift); export paths validated in Rust (`AppState::output_path`); offline locating via bundled
   Census Gazetteer 2025 (`src-tauri/data/`, `gazetteer.rs`); market observations whose listed duration
   differs >50% from the service are excluded.
-- Open items (not blockers): record the first GitHub Actions run (Windows/macOS) in docs/test-report.md;
-  live Census Data API needs a key; PDF via the GTK print dialog not automated; no screen-reader audit.
+- First full GitHub Actions run (#2, `aee9250`, 2026-10-05) passed on Linux, Windows and macOS: tests,
+  installers, smoke launches. CI now runs the full matrix on every push (public repo, free minutes).
+- Open items (not blockers): live Census Data API needs a key; PDF via the GTK print dialog not automated; no screen-reader audit.
