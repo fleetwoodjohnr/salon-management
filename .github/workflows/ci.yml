@@ -1,8 +1,7 @@
-# Continuous integration.
-# - Every push / pull request: frontend checks and Rust tests on Linux.
-# - "Run workflow" (manual) or a v* tag: Rust tests on Linux, Windows and macOS, then unsigned
-#   installers for all three, each launched once on its runner as a smoke test.
-#   (Kept off ordinary pushes because macOS minutes count 10x against a private repo's free quota.)
+# Continuous integration. On every push, pull request, manual run or v* tag: frontend checks, Rust
+# tests on Linux, Windows and macOS, then unsigned installers for all three, each launched once on
+# its runner as a smoke test. (Actions minutes are free for public repos; on a private repo macOS
+# minutes count 10x against the free quota.)
 name: CI
 
 on:
@@ -28,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')) && '["ubuntu-22.04","windows-latest","macos-latest"]' || '["ubuntu-22.04"]') }}
+        os: [ubuntu-22.04, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -53,7 +52,6 @@ jobs:
 
   build:
     needs: [frontend, test]
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
       matrix:

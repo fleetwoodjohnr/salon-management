@@ -134,10 +134,9 @@ see the script for its one-time setup). **macOS** builds need a Mac:
 `rustup target add aarch64-apple-darwin x86_64-apple-darwin` then
 `npx tauri build --target universal-apple-darwin --bundles app,dmg`.
 
-**GitHub Actions** (`.github/workflows/ci.yml`): every push runs the Linux checks. *Actions → CI → Run
-workflow* (or pushing a `v*` tag) also runs the Rust tests on Windows and macOS, builds unsigned
-installers for all three systems, launches each once as a smoke test, and attaches the installers
-to the run.
+**GitHub Actions** (`.github/workflows/ci.yml`): every push runs the Rust tests on Linux, Windows
+and macOS, builds unsigned installers for all three systems, launches each once as a smoke test, and
+attaches the installers to the run (*Actions → CI → the run → Artifacts*).
 
 This repository's own development used rootless toolbox containers (no host changes):
 `scripts/tb` (Fedora 44) and `scripts/tb-ubuntu` (Ubuntu 22.04).

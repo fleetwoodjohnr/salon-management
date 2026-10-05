@@ -153,7 +153,7 @@ NSIS 3.11 in the Fedora toolbox):
 | WebView2 install step | **Not exercised.** Wine has no WebView2, so it was marked present in the Wine registry to let the installer continue |
 | Launching the app | **Not done.** WebView2 doesn't run under Wine |
 
-**GitHub Actions** (`.github/workflows/ci.yml`, run manually or by a `v*` tag) is set up to:
+**GitHub Actions** (`.github/workflows/ci.yml`, on every push) is set up to:
 - run the Rust tests on real Windows and macOS runners;
 - build the NSIS and MSI installers, and the universal (Apple Silicon + Intel) macOS app and `.dmg`;
 - silently install the Windows build and launch it, launch the macOS app and check its ad-hoc
