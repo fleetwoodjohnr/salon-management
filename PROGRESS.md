@@ -81,6 +81,44 @@ Working log so development can resume across sessions. Newest entries at the bot
 - CI (`.github/workflows/ci.yml`): Linux checks on push; manual run or `v*` tag runs Rust tests on
   Windows/macOS, builds all installers (universal macOS dmg; nsis+msi) and smoke-launches each.
 
+## 0.2.0: updates, distance units, market research (2026-10-11)
+- **Root causes of the broken market research** (verified live 2026-10-11): one hard-coded Overpass
+  server via GET (overpass-api.de answered 504 to a one-node query; private.coffee rejects GET); `out
+  … 300` silently truncated dense areas (Seattle 300 vs 586); narrow tags; re-discovery overwrote user
+  edits; scheme-less OSM websites didn't open; no duplicate merging; only the primary location; and
+  no price retrieval at all (prices were manual by design).
+- Discovery: POST + 4 endpoints in turn, uncapped, `remark` errors treated as failures and never
+  cached (`providers::fetch_checked`), business-type tag sets, `upsert_discovered` (ref → website host
+  → phone → name within 150 m; fills empty fields only). Centre = located address, ZIP or city
+  (offline Gazetteer).
+- Prices: `research/` reads competitors' own websites. robots.txt (own RFC 9309 parser), terms
+  deny-list (social, booking platforms, directories), public-IP-only resolver + IP-literal/port
+  checks per redirect hop, same-site redirects only, 3 MB cap, anti-bot = stop. Extraction:
+  JSON-LD offers + DOM lines with ancestry (a price takes its name from its own menu item first —
+  Squarespace prints price before title), tiers/hair-length columns/qualifiers kept separate,
+  consultation-only recorded without amount, noise filters. Catalog: priority + longest pattern,
+  covering phrase wins, section headings refine vague labels only within the label.
+- Search engines/directories/booking APIs: none usable free or permitted in 2026 (Brave needs a
+  card, Foursquare ~500 calls + billing, Google CSE closed, result pages disallow bots). Domain
+  guessing verified 1/25 → dropped. User chose "free sources only".
+- Migration 007 rebuilds `market_observations` (new source type + provenance) and adds
+  `research_runs`, `research_pages`. Stats: one price per business (middle tier), mean,
+  percentile; `recommend()` = market position price if ≥ cost target, else cost target.
+- Runs are background tasks (`research-progress` events), one at a time, workspace-guarded, partial
+  failures reported; sites re-read after 7 days; 60 sites per run; `web` provider caps 1,500
+  pages/day.
+- Units: `prefs.rs` (`preferences.json` in the data root, tolerant of unknown/missing fields);
+  km stored everywhere, `DistanceInput` converts at the edge. Default miles (user's choice).
+- Updates: official `tauri-plugin-updater` 2.13.1 + process 2.4.0 (2.13 installs AppImage, deb via
+  pkexec dpkg, rpm via pkexec rpm, NSIS/MSI passive, macOS app; picks `<os>-<arch>-<bundle>`).
+  Key generated at `~/.tauri/salon-resource-manager.key` (no password); public key in
+  tauri.conf.json; user adds the GitHub secrets. CI signs only when the secret exists
+  (`--config createUpdaterArtifacts`), so local builds need no key. `scripts/release-manifest.mjs`
+  writes latest.json (11 platform keys) and release notes from CHANGELOG.md.
+- E2E harness: `clickLabel` for Mantine switch/segmented labels (WebKitWebDriver says "not
+  clickable"). slice5 now runs the Research tab map-only; slice7 covers units, a live research
+  run, overview and the update check; `e2e/update-appimage.mjs` tests the AppImage update path.
+
 ## Next steps (resume here)
 - All six slices done. Final packages built and install/launch-tested (see docs/test-report.md):
   RPM in `src-tauri/target/release/bundle/rpm/`, .deb and AppImage in
@@ -93,3 +131,11 @@ Working log so development can resume across sessions. Newest entries at the bot
 - First full GitHub Actions run (#2, `aee9250`, 2026-10-05) passed on Linux, Windows and macOS: tests,
   installers, smoke launches. CI now runs the full matrix on every push (public repo, free minutes).
 - Open items (not blockers): live Census Data API needs a key; PDF via the GTK print dialog not automated; no screen-reader audit.
+- **0.2.0 (2026-10-11), waiting on the user:** add GitHub secrets `TAURI_SIGNING_PRIVATE_KEY` (contents
+  of `~/.tauri/salon-resource-manager.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (empty), back up
+  the key, push, tag `v0.2.0`. Then check the CI release has latest.json and that an installed 0.2.0
+  sees "You have the latest version". First real cross-platform update test: release 0.2.1 and update
+  a Windows/macOS install from 0.2.0 (only the Linux AppImage path is tested so far).
+- Ideas not done: PDF menu text extraction (PDF menus are listed for manual entry); a free source
+  for websites of salons OSM lacks (none found that's free and permitted); state cosmetology license
+  open data for small-salon discovery (state-specific).

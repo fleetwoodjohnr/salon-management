@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { money, num, roundDec, unitMoney } from "./format";
+import { money, num, ordinal, roundDec, unitMoney } from "./format";
 
 describe("roundDec", () => {
   it("rounds half away from zero without float error", () => {
@@ -26,5 +26,11 @@ describe("display", () => {
   it("trims numbers", () => {
     expect(num("120.000")).toBe("120");
     expect(num("1234.567", 2)).toBe("1,234.57");
+  });
+});
+
+describe("ordinal", () => {
+  it("uses the right suffix", () => {
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 50, 101, 111].map(ordinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "50th", "101st", "111th"]);
   });
 });

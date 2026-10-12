@@ -5,7 +5,7 @@ out what each service really costs, recommends prices you can defend, and keeps 
 appointments, sales, sales tax and profitability in one place on your own computer.
 
 - **No account, no subscription, no cloud.** Everything works offline. Your data stays in a local
-  SQLite database.
+  SQLite database. Updates install from inside the app, verified with the project's signing key.
 - **Exact money.** All arithmetic uses exact decimals (no binary floating point), with documented
   rounding rules.
 - **Honest numbers.** Missing tax information is never treated as 0%. Market statistics are never
@@ -27,7 +27,8 @@ each.
 | Clients and calendar | Client records with sensitivities, history and versioned formulas. Day/week calendar by staff, drag to reschedule, overlap detection, estimates that convert to bookings. |
 | Sales | Checkout from an appointment with planned vs actual product usage, retail, discounts, tips, manual payments, partial/full refunds (explicit restock), void, printable receipts. Stock is deducted exactly once on finalize. |
 | Dashboards and reports | Customizable dashboard (add, remove, move, resize, per-widget filters, saved views, drill-down, CSV/PDF), period statement, profitability by service/profile/staff/product, sales-tax report, estimated vs actual. |
-| Market research | Competitor discovery from OpenStreetMap (names/places only), prices you observe or import (with source and date), quartiles, outliers, recency/distance rules and an evidence-quality rating. Census and BLS context kept separate from prices. |
+| Market research | Finds salons, barbers, nail and beauty businesses on OpenStreetMap around your address, a ZIP code or a city, and reads the prices they advertise on their own websites (robots.txt and site terms respected), each with its source page, time and exact text. Prices you record or import too. Overview with average, median, range, spread chart and your percentile per service; one price per business; recommended price combining the market price for your position with your cost-based target; honest coverage reporting. Census and BLS context kept separate from prices. |
+| Updates and units | Settings → Application updates checks GitHub Releases, shows what's new, and downloads, verifies and installs the right package for your system. Settings → General: miles or kilometres. |
 | Safety | Separate workspaces (including a clearly labelled demo), automatic and manual backups with checksums, verified restore, migration backups, portable CSV export, audit log. |
 
 ## Download
@@ -108,15 +109,20 @@ once: SQLite files are not safe to share that way. Use backups to move data.
   and the data version before anything changes. By default it restores as a **new** workspace; you
   can choose to replace the open one (a safety backup is taken first and the old folder is kept).
 - **Portable export:** *Export all data (CSV)…* writes every table to CSV files in one zip.
-- **Update:** install the newer package over the old one (`dnf install`/`apt install` the new file,
-  or replace the AppImage). On first open the app backs up each workspace, then upgrades it.
-  Older app versions refuse to open data saved by newer ones instead of damaging it.
+- **Update:** from 0.2.0 on, Settings → Application updates installs new versions from inside the app
+  (verified against the project's signing key; the open workspace is backed up first; a .deb or .rpm
+  asks for your password). You can still install a newer package over the old one by hand
+  (`dnf install`/`apt install` the new file, or replace the AppImage). On first open the app backs up
+  each workspace, then upgrades its data. Older app versions refuse to open data saved by newer ones
+  instead of damaging it.
 
 ## Optional online lookups
 
-Nothing is sent anywhere unless you press a lookup button. Settings → Data providers shows each
-service, its limits, terms, usage today and last error. Only the minimum is sent (an address, ZIP,
-or area code); client records never leave your computer. Free API keys (Census, optional BLS) are
+Nothing is sent anywhere unless you press a lookup button, except a once-a-day update check that you
+can turn off (Settings → Application updates). Market research reads competitors' public websites
+like a careful visitor (robots.txt obeyed, pauses between pages, no anti-bot workarounds).
+Settings → Data providers shows each service, its limits, terms, usage today and last error. Only
+the minimum is sent (an address, ZIP, or area code); client records never leave your computer. Free API keys (Census, optional BLS) are
 stored in your operating system's keyring, never in the database, backups or exports.
 Details: [docs/providers.md](docs/providers.md).
 
@@ -146,11 +152,33 @@ see the script for its one-time setup). **macOS** builds need a Mac:
 `npx tauri build --target universal-apple-darwin --bundles app,dmg`.
 
 **GitHub Actions** (`.github/workflows/ci.yml`): every push runs the Rust tests on Linux, Windows
-and macOS, builds unsigned installers for all three systems, launches each once as a smoke test, and
+and macOS, builds installers for all three systems, launches each once as a smoke test, and
 attaches the installers to the run (*Actions → CI → the run → Artifacts*). Pushing a version tag
-(`git tag v0.2.0 && git push origin v0.2.0`, after bumping the version in `package.json`,
-`src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`) also publishes a GitHub Release with all the
-installers attached.
+publishes a GitHub Release with all the installers and the updater manifest `latest.json`.
+
+### Releasing an update
+
+One-time setup (already done for this repository's key, which lives at
+`~/.tauri/salon-resource-manager.key` on the maintainer's computer and must be backed up — if it's
+lost, installed copies can't verify updates and everyone must reinstall by hand once):
+
+1. In GitHub: *Settings → Secrets and variables → Actions → New repository secret*:
+   `TAURI_SIGNING_PRIVATE_KEY` = the full contents of the private key file, and
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = empty (the key has no password).
+2. The matching public key is in `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). To use a
+   new key, generate one with `npx tauri signer generate -w <path>` and replace both.
+
+Each release:
+
+1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, and
+   add a section for it at the top of `CHANGELOG.md` (it becomes the release notes and the "What's
+   new" text in the app).
+2. Commit, push, then `git tag v0.2.1 && git push origin v0.2.1`.
+3. CI checks that the tag matches the version, builds and signs every package, and publishes the
+   release with `latest.json`. Installed copies see it on their next check.
+
+Without the secret, CI still builds installers (with a warning) but the release step stops, because
+a release without signatures can't be installed in-app.
 
 This repository's own development used rootless toolbox containers (no host changes):
 `scripts/tb` (Fedora 44) and `scripts/tb-ubuntu` (Ubuntu 22.04).
@@ -158,9 +186,11 @@ This repository's own development used rootless toolbox containers (no host chan
 ## Tests
 
 ```sh
-cargo test --manifest-path src-tauri/Cargo.toml          # 88 unit + integration tests (2 more with --ignored)
-npx tsc --noEmit && npx vitest run                         # frontend typecheck + tests
+cargo test --manifest-path src-tauri/Cargo.toml          # 121 unit + integration tests (5 more with --ignored, incl. live OSM and salon websites)
+npx tsc --noEmit && npx vitest run                         # frontend typecheck + 13 tests
 scripts/e2e-all.sh                                         # real desktop app E2E (needs Xvfb, tauri-driver, WebKitWebDriver; build with `npx tauri build --debug --no-bundle` first)
+cargo test --manifest-path src-tauri/Cargo.toml live_ -- --ignored --nocapture   # live OpenStreetMap servers and real salon websites
+node e2e/update-appimage.mjs old.AppImage new.AppImage <dir>   # in-app update end to end (see the script for building the two AppImages)
 ```
 
 See [docs/test-report.md](docs/test-report.md) for what was run and what wasn't.
@@ -180,5 +210,6 @@ See [docs/test-report.md](docs/test-report.md) for what was run and what wasn't.
 
 Linux packages need no signing to install. Windows (Authenticode) and macOS (Developer ID and
 notarization) signing are optional and need paid certificates; unsigned builds show OS warnings.
-None of this is required for Linux use.
+None of this is required for Linux use. In-app updates use a separate, free Ed25519 key (see
+*Releasing an update*).
 # salon-management

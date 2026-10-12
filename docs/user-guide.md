@@ -97,13 +97,54 @@ flagged stale when a new quarter starts.
 
 ## Market (Money → Market)
 
-- **Competitors**: search OpenStreetMap within a radius of your location (locate your business in
-  Settings → Locations first; a street address, ZIP code or city works), or add businesses yourself.
-- **Prices**: record prices you see on a business's own menu, with source and date, or import a CSV.
-  Choose which comparisons count (age, distance, hair length, "starting at" prices); the evidence
-  rating explains itself.
+- **Research**: find competitors and the prices they advertise. Choose where to search (one of your
+  located addresses, a ZIP code or a city), how far (the slider and box follow your distance unit)
+  and which kinds of business (hair salons, barbers, nail salons, beauty and skin, massage), then
+  *Start research*. The app searches OpenStreetMap, merges businesses it finds more than once (and
+  ones you already had), then reads each competitor's own website for the prices it publishes. You
+  can keep working while it runs; progress and every website's outcome appear as they happen, and
+  *Stop* keeps what was found so far. Sites read in the last week are skipped unless you tick
+  *Re-check*. The coverage summary says how many businesses were found, how many have websites, how
+  many were read, how many had usable prices, and why the others didn't (no prices online, PDF or
+  picture menu, the site asks not to be read, platform terms, blocked, couldn't reach).
+  *Add a competitor by website* adds a business the map doesn't know: its name and address are read
+  from its home page when allowed, then it's checked for prices.
+- **Overview**: one row per service: your price, how many prices from how many businesses, lowest,
+  median, average and highest, a spread chart (with your price marked), where your price sits
+  (percentile), and the recommended price. Services competitors offer that you don't are listed too.
+  Filter by service type, distance, competitor, source (advertised online, recorded by you,
+  imported) and price range. Click a row to open that service's evidence.
+- **Prices**: the evidence for one service. Every price shows its business, distance, what the
+  business called it, the price type (fixed, from, range), its source (with a link to the page and
+  when it was read) and whether the match to your service was *Inferred* automatically or made *By
+  you*. Use the ⇄ button to match a price to a different service or mark it not comparable; your
+  choice is kept when the site is checked again. Choose which comparisons count (age, distance,
+  hair length, source, competitors, "starting at" prices); each excluded price says why. A business
+  listing several prices for one service (stylist tiers) counts once, at its middle price.
+  The **Recommended price** card shows the observed market price for your market position, the price
+  your costs and target margin need (calculated from materials at inventory cost, labor time,
+  overhead, fees and commission), and the recommendation: the market price when it covers your costs,
+  otherwise the cost-based price. Type a different price and press *See margin in Pricing* to try it
+  in the what-if panel, where you can save it to the service.
+- **Competitors**: everyone found or added, with distance, source, the outcome of the last website
+  check (click it for every page looked at, including services listed "price on consultation"),
+  and *Check prices* to read one website again now. Filter by name, source, website outcome and
+  distance; add businesses by hand or by website.
+- **Import prices**: a CSV of prices you collected, one row per business and service, with the date.
 - **Local context**: Census income, population and salon counts (needs a free Census key in
   Settings → Data providers) and BLS wages and price trends. These are context, not prices.
+
+## Units and updates (Settings → General, Settings → Application updates)
+
+- **Units**: show distances in miles or kilometres. Distances are stored exactly and only
+  converted for display, so switching never changes a search radius or filter.
+- **Application updates**: shows your version and how it was installed. *Check for updates* asks
+  GitHub for the newest release and shows its version, date and changes; *Download & install update*
+  backs up the open workspace, downloads the right package for your computer (with progress and
+  speed), verifies it against the project's signing key and installs it. On Linux and macOS press
+  *Restart now* afterwards; on Windows the installer closes and reopens the app. A .deb or .rpm
+  install asks for your password. Your workspaces, backups and settings are never touched. Turn
+  *Check for updates automatically* off to stop the once-a-day check at startup.
 
 ## Workspaces and backups (Settings → Workspaces and backups)
 

@@ -9,12 +9,40 @@
 //!    whose listed duration differs from yours by more than 50% is excluded.
 //! 4. "Starting at" prices are lower bounds, not prices: excluded from statistics unless allowed.
 //! 5. Duplicates: the same business and price within 30 days counts once (newest kept).
-//! 6. Outliers: with 5+ prices, values outside 1.5 × IQR of the quartiles are excluded.
+//! 6. One price per business: when a business lists several (stylist tiers, hair lengths), its
+//!    middle price represents it, so a salon with six tiers doesn't outweigh one with one price.
+//! 7. Outliers: with 5+ prices, values outside 1.5 × IQR of the quartiles are excluded.
 //!
 //! Quantiles use linear interpolation between order statistics (the common "type 7" definition).
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+
+/// Exact by definition (international mile).
+pub const KM_PER_MI: f64 = 1.609344;
+
+/// Display unit for distances. Distances are always stored and computed in kilometres; this only
+/// changes how they are shown and typed.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DistanceUnit {
+    #[default]
+    Mi,
+    Km,
+}
+
+impl DistanceUnit {
+    pub fn from_km(self, km: f64) -> f64 {
+        match self {
+            DistanceUnit::Mi => km / KM_PER_MI,
+            DistanceUnit::Km => km,
+        }
+    }
+    /// "3.1 mi" / "5.0 km"
+    pub fn fmt(self, km: f64) -> String {
+        format!("{:.1} {}", self.from_km(km), if self == DistanceUnit::Mi { "mi" } else { "km" })
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Obs {
@@ -41,6 +69,9 @@ pub struct Rules {
     /// Your service's chair time; observations listing a duration more than 50% different are
     /// not comparable.
     pub target_minutes: Option<i64>,
+    /// Only for wording the reasons.
+    #[serde(default)]
+    pub unit: DistanceUnit,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -60,6 +91,8 @@ pub struct Stats {
     pub q3: Decimal,
     pub p90: Decimal,
     pub max: Decimal,
+    /// Average, to the cent.
+    pub mean: Decimal,
     pub median_age_days: i64,
     pub newest: String,
     pub oldest: String,
@@ -109,7 +142,7 @@ pub fn evaluate(obs: &[Obs], r: &Rules) -> Evidence {
         } else if days_between(&o.observed_on, &r.reference_date).is_none_or(|d| d > r.max_age_days || d < 0) {
             Some(format!("Older than {} days", r.max_age_days))
         } else if let (Some(max), Some(d)) = (r.radius_km, o.distance_km) {
-            (d > max).then(|| format!("{d:.1} km away (limit {max} km)"))
+            (d > max).then(|| format!("{} away (limit {})", r.unit.fmt(d), r.unit.fmt(max)))
         } else {
             None
         }
@@ -143,6 +176,21 @@ pub fn evaluate(obs: &[Obs], r: &Rules) -> Evidence {
             unique.push(o);
         }
     }
+    // One price per business: its middle listed price (the lower middle for an even count).
+    let mut by_business: std::collections::BTreeMap<i64, Vec<&Obs>> = std::collections::BTreeMap::new();
+    for o in &unique {
+        by_business.entry(o.competitor_id).or_default().push(o);
+    }
+    let mut representative: Vec<i64> = Vec::new();
+    for group in by_business.values_mut() {
+        group.sort_by(|a, b| a.price.cmp(&b.price).then(a.id.cmp(&b.id)));
+        let rep = group[(group.len() - 1) / 2];
+        representative.push(rep.id);
+        for o in group.iter().filter(|o| o.id != rep.id) {
+            set(&mut decisions, o.id, format!("Same business as observation {} (its middle of {} listed prices is used)", rep.id, group.len()));
+        }
+    }
+    unique.retain(|o| representative.contains(&o.id));
     // Outliers.
     let mut prices: Vec<Decimal> = unique.iter().map(|o| o.price).collect();
     prices.sort();
@@ -186,6 +234,7 @@ pub fn evaluate(obs: &[Obs], r: &Rules) -> Evidence {
         q3: quantile(&prices, Decimal::new(75, 2)),
         p90: quantile(&prices, Decimal::new(9, 1)),
         max: *prices.last().unwrap(),
+        mean: crate::domain::money::round_money(prices.iter().sum::<Decimal>() / Decimal::from(prices.len() as i64)),
         median_age_days: ages[ages.len() / 2],
         newest: unique.iter().map(|o| o.observed_on.clone()).max().unwrap(),
         oldest: unique.iter().map(|o| o.observed_on.clone()).min().unwrap(),
@@ -216,6 +265,42 @@ pub fn evaluate(obs: &[Obs], r: &Rules) -> Evidence {
     Evidence { quality: quality.into(), reasons, stats: Some(stats), decisions, starting_at_count: starting_at }
 }
 
+/// Where a price sits among comparable prices, 0–100 (ties count half), e.g. 50 = the middle.
+pub fn percentile_rank(price: Decimal, sorted: &[Decimal]) -> Option<i64> {
+    if sorted.is_empty() {
+        return None;
+    }
+    let below = sorted.iter().filter(|p| **p < price).count() as f64;
+    let equal = sorted.iter().filter(|p| **p == price).count() as f64;
+    Some(((below + equal / 2.0) / sorted.len() as f64 * 100.0).round() as i64)
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Recommendation {
+    /// Observed: the comparable local price at your market position (needs medium or high evidence).
+    pub market_price: Option<Decimal>,
+    /// Calculated: the lowest price that covers your costs (materials at inventory cost, labor
+    /// time, overhead, fees, commission) and your target margin.
+    pub cost_target: Option<Decimal>,
+    pub recommended: Option<Decimal>,
+    /// "market" | "cost" | "none"
+    pub basis: String,
+    pub explanation: String,
+}
+
+/// Combine the observed market price for your position with your cost-based target: the market
+/// price when it covers your costs and margin, otherwise the cost-based price.
+pub fn recommend(market_price: Option<Decimal>, cost_target: Option<Decimal>, position: &str) -> Recommendation {
+    let (recommended, basis, explanation) = match (market_price, cost_target) {
+        (Some(m), Some(t)) if m >= t => (Some(m), "market", format!("The {position} local price (${m:.2}) also covers your costs and target margin, which need ${t:.2}.")),
+        (Some(m), Some(t)) => (Some(t), "cost", format!("Local prices at your position (${m:.2}) are below what your costs and target margin need (${t:.2}). Charging ${m:.2} would earn less than your target margin.")),
+        (Some(m), None) => (Some(m), "market", format!("Based on the {position} local price only. Add this service's costs (work profile and recipe) to check your margin.")),
+        (None, Some(t)) => (Some(t), "cost", "Not enough comparable local prices yet, so this comes from your costs and target margin alone.".to_string()),
+        (None, None) => (None, "none", "Add costs or collect local prices to get a recommendation.".to_string()),
+    };
+    Recommendation { market_price, cost_target, recommended, basis: basis.into(), explanation }
+}
+
 fn set(decisions: &mut [Decision], id: i64, reason: String) {
     if let Some(d) = decisions.iter_mut().find(|d| d.id == id) {
         d.included = false;
@@ -241,7 +326,7 @@ mod tests {
         Obs { id, competitor_id: comp, price, price_type: "exact".into(), observed_on: date.into(), distance_km: Some(2.0), hair_length: String::new(), stylist_level: String::new(), duration_min: None, excluded_by_user: false }
     }
     fn rules() -> Rules {
-        Rules { reference_date: "2026-10-01".into(), max_age_days: 540, radius_km: Some(15.0), hair_length: String::new(), stylist_level: String::new(), include_starting_at: false, target_minutes: None }
+        Rules { reference_date: "2026-10-01".into(), max_age_days: 540, radius_km: Some(15.0), hair_length: String::new(), stylist_level: String::new(), include_starting_at: false, target_minutes: None, unit: DistanceUnit::Km }
     }
 
     #[test]
@@ -305,8 +390,37 @@ mod tests {
     }
 
     #[test]
+    fn one_price_per_business_mean_percentile_and_recommendation() {
+        // Business 1 lists three stylist tiers; the others one price each.
+        let obs = vec![o(1, 1, dec!(45), "2026-09-01"), o(2, 1, dec!(55), "2026-09-01"), o(3, 1, dec!(65), "2026-09-01"), o(4, 2, dec!(50), "2026-09-02"), o(5, 3, dec!(60), "2026-09-03")];
+        let e = evaluate(&obs, &rules());
+        let s = e.stats.unwrap();
+        assert_eq!((s.n, s.businesses, s.median, s.mean), (3, 3, dec!(55), dec!(55)));
+        assert!(e.decisions.iter().find(|d| d.id == 1).unwrap().reason.as_ref().unwrap().contains("middle of 3"));
+        assert!(e.decisions.iter().find(|d| d.id == 2).unwrap().included);
+        assert_eq!(percentile_rank(dec!(55), &[dec!(50), dec!(55), dec!(60)]), Some(50));
+        assert_eq!(percentile_rank(dec!(70), &[dec!(50), dec!(55), dec!(60)]), Some(100));
+        assert_eq!(percentile_rank(dec!(70), &[]), None);
+        let r = recommend(Some(dec!(80)), Some(dec!(72.5)), "median");
+        assert_eq!((r.recommended, r.basis.as_str()), (Some(dec!(80)), "market"));
+        let r = recommend(Some(dec!(60)), Some(dec!(72.5)), "median");
+        assert_eq!((r.recommended, r.basis.as_str()), (Some(dec!(72.5)), "cost"));
+        assert!(r.explanation.contains("$60.00"));
+        assert_eq!(recommend(None, None, "median").recommended, None);
+    }
+
+    #[test]
     fn distance() {
         let d = haversine_km(46.992, -122.9168, 47.6097, -122.3331);
         assert!((d - 83.0).abs() < 3.0, "{d}");
+        assert_eq!(DistanceUnit::Mi.fmt(KM_PER_MI * 5.0), "5.0 mi");
+        assert_eq!(DistanceUnit::Km.fmt(8.04672), "8.0 km");
+        // The reason follows the display unit; the 15 km limit itself is unchanged.
+        let mut far = o(1, 1, dec!(80), "2026-09-01");
+        far.distance_km = Some(40.0);
+        let mut r = rules();
+        r.unit = DistanceUnit::Mi;
+        let e = evaluate(&[far], &r);
+        assert_eq!(e.decisions[0].reason.as_deref(), Some("24.9 mi away (limit 9.3 mi)"));
     }
 }

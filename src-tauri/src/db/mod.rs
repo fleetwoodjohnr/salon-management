@@ -12,6 +12,7 @@ pub mod market;
 pub mod pricing;
 pub mod profiles;
 pub mod reports;
+pub mod research;
 pub mod sales;
 pub mod services;
 pub mod tax;
@@ -28,6 +29,7 @@ pub const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/004_providers.sql"),
     include_str!("../../migrations/005_sales.sql"),
     include_str!("../../migrations/006_market_dashboards.sql"),
+    include_str!("../../migrations/007_market_research.sql"),
 ];
 
 pub fn schema_version() -> i64 {
@@ -170,5 +172,46 @@ mod tests {
             assert_eq!(called, Some(start));
             assert_eq!(user_version(&conn).unwrap(), schema_version());
         }
+    }
+
+
+    /// Upgrading a 0.1.0 workspace (data version 6) takes a backup first and keeps every observed
+    /// price exactly as it was.
+    #[test]
+    fn migration_7_keeps_observations() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        for sql in &MIGRATIONS[..6] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 6).unwrap();
+        conn.execute_batch(
+            "INSERT INTO services (id, name, hands_on_min) VALUES (1, 'Cut', 45);
+             INSERT INTO competitors (id, name, source, source_ref) VALUES (1, 'A', 'osm', 'node/1');
+             INSERT INTO market_observations (id, competitor_id, service_id, service_label, price, price_type, price_max, duration_min, hair_length, source_type, source_url, observed_on, notes, excluded)
+               VALUES (1, 1, 1, 'Cut', '45', 'exact', NULL, 50, 'short', 'user_observed', 'https://a.example', '2026-09-01', 'n', 1),
+                      (2, 1, NULL, 'Color', '80', 'range', '120', NULL, '', 'csv_import', '', '2026-09-02', '', 0);",
+        )
+        .unwrap();
+        let dump = |c: &Connection| -> Vec<String> {
+            let mut st = c
+                .prepare("SELECT id, competitor_id, service_id, service_label, price, price_type, price_max, duration_min, hair_length, stylist_level, inclusions, source_type, source_url, observed_on, notes, excluded, created_at FROM market_observations ORDER BY id")
+                .unwrap();
+            let rows = st.query_map([], |r| Ok((0..17).map(|i| format!("{:?}", r.get::<_, rusqlite::types::Value>(i).unwrap())).collect::<Vec<_>>().join("|"))).unwrap();
+            rows.map(Result::unwrap).collect()
+        };
+        let before = dump(&conn);
+        let mut backed_up_from = None;
+        migrate(&mut conn, |_, v| {
+            backed_up_from = Some(v);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(backed_up_from, Some(6));
+        assert_eq!(user_version(&conn).unwrap(), schema_version());
+        assert_eq!(dump(&conn), before);
+        let methods: Vec<String> = conn.prepare("SELECT match_method FROM market_observations ORDER BY id").unwrap().query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
+        assert_eq!(methods, ["user", "none"]);
+        conn.execute("INSERT INTO market_observations (competitor_id, service_label, price, price_type, source_type, observed_on, retrieved_at) VALUES (1, 'Cut', '50', 'exact', 'web_extracted', '2026-10-11', '2026-10-11T10:00:00Z')", []).unwrap();
     }
 }

@@ -5,7 +5,7 @@
 set -euo pipefail
 DIR="${1:-$(mktemp -d)/srm-e2e}"
 rm -rf "$DIR" e2e/screenshots
-for s in smoke slice2 slice3 slice4 slice5 slice6; do
+for s in smoke slice2 slice3 slice4 slice5 slice6 slice7; do
   echo "== $s"
   node "e2e/$s.mjs" "$DIR"
 done

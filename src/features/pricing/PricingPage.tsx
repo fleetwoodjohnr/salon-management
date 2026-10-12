@@ -59,11 +59,13 @@ function emptyWhatIf(id: number): WhatIf {
   return { service_id: id, variant_ids: [], target_kind: null, target_pct: null, position: null, monthly_overhead: null, utilization_pct: null, time: null, material_factor: null, price: null };
 }
 
-function WhatIfPanel({ service }: { service: ServiceView }) {
+/** `startPrice` pre-fills the price to try (from the Market page's "Adjust in Pricing"). */
+function WhatIfPanel({ service, startPrice }: { service: ServiceView; startPrice: string | null }) {
   const sid = service.input.id!;
   const profile = useCmd<ProfileView>("profile_get", { id: service.input.profile_id ?? 0 }, !!service.input.profile_id);
-  const [w, setW] = useState<WhatIf>(emptyWhatIf(sid));
-  useEffect(() => setW(emptyWhatIf(sid)), [sid]);
+  const start = () => ({ ...emptyWhatIf(sid), price: startPrice && /^\d+(\.\d{1,2})?$/.test(startPrice) ? startPrice : null });
+  const [w, setW] = useState<WhatIf>(start);
+  useEffect(() => setW(start()), [sid, startPrice]); // eslint-disable-line react-hooks/exhaustive-deps
   const [debounced] = useDebouncedValue(w, 200);
   const q = useQuery({
     queryKey: ["pricing_what_if", debounced],
@@ -370,7 +372,7 @@ export function PricingPage() {
               </Grid.Col>
               <Grid.Col span={{ base: 12, lg: 9 }}>
                 <QueryState loading={service.isLoading} error={service.error}>
-                  {() => <WhatIfPanel service={service.data!} />}
+                  {() => <WhatIfPanel service={service.data!} startPrice={params.get("price")} />}
                 </QueryState>
               </Grid.Col>
             </Grid>

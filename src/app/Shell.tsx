@@ -28,6 +28,7 @@ import type { AppStatus } from "../api/types";
 import { anyDirty } from "../components/dirty";
 import { STATUS_KEY, useApplyStatus } from "./App";
 import { navItems, navSections } from "./nav";
+import { useUpdateCheck } from "./useUpdateCheck";
 
 function WorkspaceMenu({ status }: { status: AppStatus }) {
   const apply = useApplyStatus();
@@ -90,6 +91,7 @@ export function Shell() {
   const location = useLocation();
   const { setColorScheme } = useMantineColorScheme();
   const scheme = useComputedColorScheme("light");
+  useUpdateCheck();
 
   useHotkeys([
     ["mod+K", () => spotlight.open()],

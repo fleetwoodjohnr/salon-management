@@ -44,6 +44,9 @@ pub struct OpenWorkspace {
 pub struct AppState {
     pub root: PathBuf,
     pub http: crate::providers::Http,
+    /// Client for reading competitors' public web pages (stricter than `http`).
+    pub web: std::sync::Arc<crate::research::http::WebClient>,
+    pub research: crate::research::Runner,
     current: Mutex<Option<OpenWorkspace>>,
     registry_lock: Mutex<()>,
 }
@@ -52,7 +55,14 @@ impl AppState {
     pub fn new(root: PathBuf) -> AppResult<Self> {
         std::fs::create_dir_all(root.join("workspaces"))?;
         std::fs::create_dir_all(root.join("backups"))?;
-        Ok(AppState { root, http: crate::providers::Http::new(), current: Mutex::new(None), registry_lock: Mutex::new(()) })
+        Ok(AppState {
+            root,
+            http: crate::providers::Http::new(),
+            web: Default::default(),
+            research: Default::default(),
+            current: Mutex::new(None),
+            registry_lock: Mutex::new(()),
+        })
     }
 
     pub fn ws_dir(&self, id: &str) -> PathBuf {
@@ -169,6 +179,7 @@ impl AppState {
             backup::create(conn, &info, &attachments, &backups, &format!("pre-migration-v{from}")).map(|_| ())
         })?;
         backup::auto_backup_if_due(&conn, &info, &attachments, &backups)?;
+        db::research::close_stale_runs(&conn)?;
         *guard = Some(OpenWorkspace { info: info.clone(), conn });
         drop(guard);
         self.update_registry(|r| {
@@ -268,6 +279,10 @@ impl AppState {
             tx.commit()?;
             Ok(out)
         })
+    }
+
+    pub fn prefs(&self) -> crate::prefs::Prefs {
+        crate::prefs::load(&self.root)
     }
 
     pub fn current_attachments_dir(&self) -> AppResult<PathBuf> {

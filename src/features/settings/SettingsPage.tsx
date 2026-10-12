@@ -14,7 +14,9 @@ import { PageHeader } from "../../components/PageHeader";
 import { QueryState } from "../../components/QueryState";
 import { isoToLocal } from "../../lib/format";
 import { BusinessFields, emptyLocation, LocationFields, ScheduleFields } from "./forms";
+import { GeneralTab } from "./GeneralTab";
 import { ProvidersTab } from "./ProvidersTab";
+import { UpdatesTab } from "./UpdatesTab";
 
 function useFieldErrors() {
   const [error, setError] = useState<AppError | null>(null);
@@ -587,13 +589,15 @@ export function SettingsPage() {
   const tab = params.get("tab") ?? "business";
   return (
     <>
-      <PageHeader title="Settings" description="Business details, locations, staff, workspaces and backups." />
+      <PageHeader title="Settings" description="Business details, locations, staff, workspaces and backups, units and application updates." />
       <Tabs value={tab} onChange={(v) => setParams({ tab: v ?? "business" }, { replace: true })} keepMounted={false}>
         <Tabs.List mb="lg">
           <Tabs.Tab value="business">Business</Tabs.Tab>
           <Tabs.Tab value="locations">Locations</Tabs.Tab>
           <Tabs.Tab value="staff">Staff</Tabs.Tab>
           <Tabs.Tab value="workspaces">Workspaces and backups</Tabs.Tab>
+          <Tabs.Tab value="general">General</Tabs.Tab>
+          <Tabs.Tab value="updates">Application updates</Tabs.Tab>
           <Tabs.Tab value="providers">Data providers</Tabs.Tab>
           <Tabs.Tab value="activity">Activity log</Tabs.Tab>
         </Tabs.List>
@@ -608,6 +612,12 @@ export function SettingsPage() {
         </Tabs.Panel>
         <Tabs.Panel value="workspaces">
           <WorkspacesTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="general">
+          <GeneralTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="updates">
+          <UpdatesTab />
         </Tabs.Panel>
         <Tabs.Panel value="providers">
           <ProvidersTab />

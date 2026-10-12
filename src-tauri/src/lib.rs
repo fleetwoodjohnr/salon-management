@@ -7,6 +7,8 @@ pub mod demo;
 pub mod domain;
 pub mod error;
 pub mod gazetteer;
+pub mod prefs;
+pub mod research;
 pub mod providers;
 pub mod workspace;
 
@@ -24,6 +26,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let root = workspace::data_root(&app.path().app_data_dir()?);
             app.manage(workspace::AppState::new(root)?);
@@ -42,6 +46,10 @@ pub fn run() {
             commands::app::backup_restore,
             commands::app::demo_create,
             commands::app::export_all,
+            commands::app::prefs_get,
+            commands::app::prefs_set,
+            commands::app::update_prepare,
+            commands::app::app_install_kind,
             commands::core::business_get,
             commands::core::business_save,
             commands::core::locations_list,
@@ -122,10 +130,18 @@ pub fn run() {
             commands::reports::observation_exclude,
             commands::reports::observation_delete,
             commands::reports::market_evidence,
+            commands::reports::market_overview,
             commands::reports::observations_import_preview,
             commands::reports::observations_import_commit,
-            commands::reports::competitors_discover,
             commands::reports::market_context,
+            commands::research::research_start,
+            commands::research::research_cancel,
+            commands::research::research_progress,
+            commands::research::research_runs,
+            commands::research::research_competitor,
+            commands::research::competitor_add_website,
+            commands::research::competitor_pages,
+            commands::research::observation_match,
             commands::sales::clients_list,
             commands::sales::client_get,
             commands::sales::client_save,

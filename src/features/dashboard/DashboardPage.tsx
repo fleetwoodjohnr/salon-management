@@ -41,7 +41,7 @@ function widgetCsv(w: DashWidget, report: Report | undefined, snap: Snapshot | u
     case "pricing_alerts":
       return { headers: ["service", "price", "target_price", "status"], rows: (snap?.pricing_alerts ?? []).map((v) => [v.name, v.price ?? "", v.target_price ?? "", v.status]) };
     case "market":
-      return { headers: ["service", "your_price", "median", "q1", "q3", "n", "quality"], rows: (snap?.market ?? []).map((m) => [m.service_name, m.your_price ?? "", m.median ?? "", m.q1 ?? "", m.q3 ?? "", String(m.n), m.quality]) };
+      return { headers: ["service", "your_price", "median", "q1", "q3", "n", "businesses", "quality"], rows: (snap?.market ?? []).map((m) => [m.service_name, m.your_price ?? "", m.median ?? "", m.q1 ?? "", m.q3 ?? "", String(m.n), String(m.businesses), m.quality]) };
     default:
       return { headers: ["metric", "value"], rows: s ? Object.entries(s).map(([k, v]) => [k, v == null ? "" : String(v)]) : [] };
   }

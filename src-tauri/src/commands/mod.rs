@@ -7,6 +7,7 @@ pub mod inventory;
 pub mod profiles;
 pub mod providers;
 pub mod reports;
+pub mod research;
 pub mod sales;
 pub mod services;
 pub mod tax;

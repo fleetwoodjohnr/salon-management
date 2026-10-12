@@ -7,7 +7,7 @@ use crate::db::reports::{self, LineFact, RefundFact, Report, ReportFilter};
 use crate::db::appointments::{self, AppointmentView};
 use crate::db::core::{get_business, location};
 use crate::error::{AppError, AppResult};
-use crate::providers::{bls, census, overpass};
+use crate::providers::{bls, census};
 use crate::workspace::AppState;
 use rust_decimal::Decimal;
 use serde::Serialize;
@@ -52,6 +52,7 @@ pub struct MarketComparison {
     pub q1: Option<Decimal>,
     pub q3: Option<Decimal>,
     pub n: usize,
+    pub businesses: usize,
     pub quality: String,
 }
 
@@ -74,10 +75,9 @@ pub async fn dashboard_snapshot(state: State<'_, AppState>, now: String, until: 
         let today = &now[..10];
         let mut market_rows = Vec::new();
         for s in &services {
-            let q = EvidenceQuery { service_id: s.id, max_age_days: None, radius_km: None, hair_length: String::new(), stylist_level: String::new(), include_starting_at: false, position: None, target_price: None };
-            let e = market::evidence(c, &q, today, None)?;
+            let e = market::evidence(c, &EvidenceQuery::for_service(s.id), today, None, Default::default())?;
             if let Some(st) = &e.evidence.stats {
-                market_rows.push(MarketComparison { service_id: s.id, service_name: s.name.clone(), your_price: s.price, median: Some(st.median), q1: Some(st.q1), q3: Some(st.q3), n: st.n, quality: e.evidence.quality.clone() });
+                market_rows.push(MarketComparison { service_id: s.id, service_name: s.name.clone(), your_price: s.price, median: Some(st.median), q1: Some(st.q1), q3: Some(st.q3), n: st.n, businesses: st.businesses, quality: e.evidence.quality.clone() });
             }
         }
         Ok(Snapshot {
@@ -130,9 +130,18 @@ pub async fn observation_delete(state: State<'_, AppState>, id: i64) -> AppResul
     state.tx(|c| market::delete_observation(c, id))
 }
 #[tauri::command]
+pub async fn market_overview(state: State<'_, AppState>, query: market::OverviewQuery, today: String) -> AppResult<Vec<market::OverviewRow>> {
+    let unit = state.prefs().distance_unit;
+    state.read(|c| {
+        let services = crate::db::services::list(c, false, crate::commands::services::tax_for)?;
+        market::overview(c, &query, &services, &today, unit)
+    })
+}
+#[tauri::command]
 pub async fn market_evidence(state: State<'_, AppState>, query: EvidenceQuery, today: String) -> AppResult<MarketEvidence> {
     let cpi = bls::cached_cpi(&state)?;
-    state.read(|c| market::evidence(c, &query, &today, cpi.as_ref()))
+    let unit = state.prefs().distance_unit;
+    state.read(|c| market::evidence(c, &query, &today, cpi.as_ref(), unit))
 }
 #[tauri::command]
 pub async fn observations_import_preview(state: State<'_, AppState>, path: String, mapping: ObservationMapping, default_service: Option<i64>) -> AppResult<Vec<ObsImportRow>> {
@@ -143,30 +152,6 @@ pub async fn observations_import_preview(state: State<'_, AppState>, path: Strin
 pub async fn observations_import_commit(state: State<'_, AppState>, path: String, mapping: ObservationMapping, default_service: Option<i64>) -> AppResult<usize> {
     let t = crate::csvio::read(&PathBuf::from(path))?;
     state.tx(|c| market::import_observations(c, &t, &mapping, default_service))
-}
-
-#[derive(Serialize)]
-pub struct DiscoverResult {
-    pub found: usize,
-    pub added: usize,
-    pub updated: usize,
-    pub attribution: String,
-}
-
-#[tauri::command]
-pub async fn competitors_discover(state: State<'_, AppState>, radius_km: f64) -> AppResult<DiscoverResult> {
-    let loc = state.read(|c| {
-        let id = get_business(c)?.primary_location_id.ok_or_else(|| AppError::msg("Set a primary location first."))?;
-        location(c, id)
-    })?;
-    let (lat, lon) = match (loc.latitude.as_deref().and_then(|v| v.parse::<f64>().ok()), loc.longitude.as_deref().and_then(|v| v.parse::<f64>().ok())) {
-        (Some(a), Some(b)) => (a, b),
-        _ => return Err(AppError::msg("Locate your business first (Settings → Locations → Locate) so nearby businesses can be found.")),
-    };
-    let found = overpass::nearby(&state, lat, lon, radius_km).await?;
-    let attribution = crate::providers::info("overpass")?.attribution.unwrap_or_default().to_string();
-    let (added, updated) = state.tx(|c| market::import_osm(c, &found, &attribution))?;
-    Ok(DiscoverResult { found: found.len(), added, updated, attribution })
 }
 
 #[derive(Serialize)]

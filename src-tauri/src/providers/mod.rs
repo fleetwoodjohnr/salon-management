@@ -114,14 +114,27 @@ pub const PROVIDERS: &[ProviderInfo] = &[
         id: "overpass",
         name: "OpenStreetMap Overpass API",
         purpose: "Competitor discovery",
-        gives: "Names and locations of hair and beauty salons mapped in OpenStreetMap near you. No prices.",
-        coverage: "Worldwide; completeness varies by area",
+        gives: "Names, locations, websites and phone numbers of hair, nail, beauty and barber businesses mapped in OpenStreetMap near you. No prices.",
+        coverage: "Worldwide; completeness varies by area (only businesses someone has mapped)",
         license: "© OpenStreetMap contributors, Open Database License (ODbL); attribution required",
-        limits: "Fair use: under 100 queries a day for regular use; this app allows 50 a day",
+        limits: "Fair use: under 100 queries a day for regular use. Four public servers are tried in turn (overpass-api.de and its lz4/z mirrors, overpass.private.coffee); results are reused for a week; this app allows 50 a day",
         docs_url: "https://wiki.openstreetmap.org/wiki/Overpass_API",
         daily_cap: 50,
         key: None,
         attribution: Some("Data © OpenStreetMap contributors, available under the Open Database License (ODbL)."),
+    },
+    ProviderInfo {
+        id: "web",
+        name: "Competitor websites",
+        purpose: "Advertised prices",
+        gives: "Service prices that competitors publish on their own websites, with the page address and the time it was read.",
+        coverage: "Businesses with a website in OpenStreetMap or added by you. Prices in images, PDFs or booking widgets can't be read.",
+        license: "Each site's robots.txt is obeyed; sites whose terms forbid automated reading (social networks, booking platforms, directories) are never read; anti-bot checks are never bypassed",
+        limits: "One page at a time per site with at least 1.5 seconds between requests (longer if the site asks), at most 8 pages per site; this app allows 1,500 pages a day",
+        docs_url: "https://www.rfc-editor.org/rfc/rfc9309",
+        daily_cap: 1500,
+        key: None,
+        attribution: None,
     },
 ];
 
@@ -197,14 +210,19 @@ impl Http {
         Http { client, inflight: tokio::sync::Mutex::new(HashMap::new()) }
     }
 
-    /// GET with up to two retries for timeouts, connection errors and 5xx (not 4xx).
-    async fn get_text(&self, url: &str, secrets: &[&str]) -> AppResult<String> {
+    /// GET (or POST of a form when `form` is given) with up to two retries for timeouts,
+    /// connection errors and 5xx (not 4xx).
+    async fn get_text(&self, url: &str, form: Option<&[(&str, &str)]>, secrets: &[&str]) -> AppResult<String> {
         let mut last = String::new();
         for attempt in 0..3u64 {
             if attempt > 0 {
                 tokio::time::sleep(Duration::from_millis(800 * attempt * attempt)).await;
             }
-            match self.client.get(url).send().await {
+            let req = match form {
+                Some(f) => self.client.post(url).form(f),
+                None => self.client.get(url),
+            };
+            match req.send().await {
                 Ok(r) if r.status().is_success() => return r.text().await.map_err(|e| AppError::Provider(redact(&format!("Reading the response failed: {e}"), secrets))),
                 Ok(r) if r.status().as_u16() == 429 => {
                     return Err(AppError::Provider("The provider is rate-limiting requests. Wait at least 30 seconds before trying again.".into()))
@@ -245,17 +263,27 @@ pub fn cached(state: &AppState, provider: &str, request_key: &str) -> AppResult<
 }
 
 fn record(state: &AppState, provider: &str, ok: bool, message: &str) -> AppResult<()> {
+    record_many(state, provider, 1, (!ok) as i64, ok, message)
+}
+
+/// Count several requests at once (a website check reads a few pages) for the providers page.
+pub fn record_many(state: &AppState, provider: &str, requests: i64, errors: i64, ok: bool, message: &str) -> AppResult<()> {
     let day = crate::db::tax::today().to_string();
     state.tx(|c| {
         c.execute(
-            "INSERT INTO provider_usage (provider, day, requests, errors) VALUES (?1, ?2, 1, ?3)
-             ON CONFLICT(provider, day) DO UPDATE SET requests = requests + 1, errors = errors + excluded.errors",
-            params![provider, day, (!ok) as i64],
+            "INSERT INTO provider_usage (provider, day, requests, errors) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(provider, day) DO UPDATE SET requests = requests + excluded.requests, errors = errors + excluded.errors",
+            params![provider, day, requests, errors],
         )?;
         c.execute("INSERT INTO provider_events (provider, ok, message) VALUES (?1, ?2, ?3)", params![provider, ok as i64, message])?;
         c.execute("DELETE FROM provider_events WHERE provider = ?1 AND id NOT IN (SELECT id FROM provider_events WHERE provider = ?1 ORDER BY id DESC LIMIT 50)", [provider])?;
         Ok(())
     })
+}
+
+/// Requests left today under this app's own cap.
+pub fn remaining_today(state: &AppState, provider: &str) -> AppResult<i64> {
+    Ok(info(provider)?.daily_cap - used_today(state, provider)?)
 }
 
 fn used_today(state: &AppState, provider: &str) -> AppResult<i64> {
@@ -266,6 +294,22 @@ fn used_today(state: &AppState, provider: &str) -> AppResult<i64> {
 /// Fetch through cache → quota → network. `request_key` must not contain secrets; `url` may.
 /// `max_age_hours`: reuse a cached response younger than this (None = always refetch).
 pub async fn fetch(state: &AppState, provider: &str, request_key: &str, url: &str, secrets: &[&str], max_age_hours: Option<i64>) -> AppResult<Fetched> {
+    fetch_checked(state, provider, request_key, url, None, secrets, max_age_hours, &|_| Ok(())).await
+}
+
+/// Like `fetch`, optionally POSTing a form, and caching the body only when `check` accepts it
+/// (some services answer 200 with an error inside, which must not be served from cache later).
+#[allow(clippy::too_many_arguments)]
+pub async fn fetch_checked(
+    state: &AppState,
+    provider: &str,
+    request_key: &str,
+    url: &str,
+    form: Option<&[(&str, &str)]>,
+    secrets: &[&str],
+    max_age_hours: Option<i64>,
+    check: &(dyn Fn(&str) -> AppResult<()> + Sync),
+) -> AppResult<Fetched> {
     let p = info(provider)?;
     let lock = {
         let mut m = state.http.inflight.lock().await;
@@ -281,7 +325,7 @@ pub async fn fetch(state: &AppState, provider: &str, request_key: &str, url: &st
     if used_today(state, provider)? >= p.daily_cap {
         return Err(AppError::Provider(format!("Today's limit of {} lookups for {} is used up. Cached results still work; try again tomorrow.", p.daily_cap, p.name)));
     }
-    match state.http.get_text(url, secrets).await {
+    match state.http.get_text(url, form, secrets).await.and_then(|body| check(&body).map(|_| body)) {
         Ok(body) => {
             let fetched_at = now_utc();
             state.tx(|c| {
@@ -382,7 +426,7 @@ mod tests {
     async fn connection_failure_is_an_error_not_a_value() {
         let h = Http::new();
         // Port 9 (discard) on localhost is closed in test environments.
-        let e = h.get_text("http://127.0.0.1:9/", &[]).await.unwrap_err().to_string();
+        let e = h.get_text("http://127.0.0.1:9/", None, &[]).await.unwrap_err().to_string();
         assert!(e.contains("connect") || e.contains("Request failed"), "{e}");
     }
 }

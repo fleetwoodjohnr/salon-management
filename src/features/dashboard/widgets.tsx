@@ -266,7 +266,7 @@ export function WidgetBody({
       return snapshot ? (
         snapshot.market.length === 0 ? (
           <Text size="sm" c="dimmed">
-            No observed competitor prices yet. Add them on the Market page.
+            No competitor prices yet. Find them on the Market page (Research).
           </Text>
         ) : (
           <Table fz="xs">
@@ -290,7 +290,7 @@ export function WidgetBody({
                   </Table.Td>
                   <Table.Td>
                     <Badge color={m.quality === "high" ? "teal" : m.quality === "medium" ? "blue" : "gray"}>
-                      {m.quality} ({m.n})
+                      {m.quality} ({m.n} from {m.businesses})
                     </Badge>
                   </Table.Td>
                 </Table.Tr>

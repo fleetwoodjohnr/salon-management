@@ -13,9 +13,11 @@
     "dialog:allow-confirm",
     "dialog:allow-message",
     "clipboard-manager:allow-write-text",
+    "updater:default",
+    "process:allow-restart",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://*" }]
+      "allow": [{ "url": "https://*" }, { "url": "http://*" }]
     }
   ]
 }

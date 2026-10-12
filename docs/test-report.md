@@ -1,11 +1,72 @@
 # Test report
 
+## 0.2.0 (2026-10-11)
+
+Same host and toolboxes as 0.1.0 below (Fedora 44 host; `srm-fedora`, `srm-ubuntu`). Tauri CLI
+2.12.1, updater plugin 2.13.1.
+
+| Check | Result |
+|---|---|
+| Rust unit and integration tests (`cargo test`) | **121 passed**, 0 failed, 5 ignored (benchmark, OS keyring, and three live-network checks run separately below) |
+| Frontend typecheck and tests (`tsc --noEmit`, `vitest`) | Passed; **13 tests** (distance conversion, formatting, update error wording, release manifest) |
+| Lint (`cargo clippy --all-targets`) | No warnings in new code; 6 older warnings in untouched files left as they were |
+| Real desktop app end-to-end (`scripts/e2e-all.sh`, debug build, live network) | **7 scripts, all passed** (slice 5 now uses the Research tab; new slice 7: units, live research, overview, update check) |
+| Live OpenStreetMap discovery (`cargo test live_overpass -- --ignored`) | Passed for Tumwater, Seattle, Austin and Indianapolis at 3 km (hair) and 8 km (all types). 4 of the 8 queries got 504s from the first one or two servers and succeeded on the next; Seattle 8 km returned **554** named businesses (the old query stopped at 300) |
+| Live website crawl (`cargo test live_crawl -- --ignored`) | Passed: prices from **4 of 5** real Seattle salon sites (19, 28, 114 and 57 prices; the fifth publishes none as text), 2–8 s per site, robots.txt respected |
+| In-app update, Linux AppImage (`e2e/update-appimage.mjs`) | **Passed**: two signed AppImages (0.2.0 → 0.2.1, test key, local update server). An interrupted download and a well-formed but wrong signature were each rejected with the installed AppImage byte-for-byte unchanged; the good update replaced it with exactly the 0.2.1 file, made a pre-update backup per attempt (3), and the restarted app reported 0.2.1 with the demo data intact |
+| Windows: Rust suite compiled for `x86_64-pc-windows-msvc`, run under Wine | **121 passed**, 0 failed, 5 ignored (includes the crawler tests against a local server, migrations and the research runs). Wine is not Windows |
+| Updater signatures per package format | With `createUpdaterArtifacts` and a test key: AppImage, `.deb`, `.rpm` (release build) and the cross-built Windows NSIS setup each got a `.sig`; without a key the build stops ("A public key has been found, but no private key"), which is why CI enables it only when the secret exists. MSI and macOS `.app.tar.gz` are built only by CI |
+| Release manifest on real artifacts (`scripts/release-manifest.mjs`) | 11 platform entries with space-free asset URLs (GitHub would turn spaces into dots), signatures copied byte for byte, and a stale 0.1.0 package in the folder left out (MSI and macOS stand-ins) |
+| Windows and macOS updater install | **Not run here** (see below) |
+
+**Market research, root causes confirmed before fixing (2026-10-11):**
+- `overpass-api.de` answered HTTP 504 to `node(1);out;` repeatedly; `overpass.private.coffee`
+  answered 500 to GET and 200 to POST; `lz4.`/`z.overpass-api.de` worked. The app used GET on the
+  first server only, so discovery failed.
+- The query ended `out center tags 300`: Seattle within 6–8 km returned exactly 300 elements, while an
+  uncapped query with the broader tags returned 586.
+- Only `shop=hairdresser|beauty` were searched; barbers, `shop=nails`, spas and massage were missed
+  (Tumwater 61 → 74 businesses with the broader tags).
+
+**Price extraction against real menus** (saved locally from public sites, not committed; synthetic
+fixtures in the unit tests reproduce each layout):
+
+| Site (platform) | Layout | Result |
+|---|---|---|
+| industry-salon.com/color, /cut | Heading + "Stylist level \| $price" rows, 6 tiers | 96 prices, each with its tier; a row missing its "$" is skipped, not guessed |
+| salonvoda.com/services-1 (Wix) | "BLOWOUT $55+" | 14 prices, all "starting at"; "PARTIAL/FULL FOIL $155/$200+" split into two services; 3 consultation-only services recorded |
+| 19thavenuesalon.com/services | "Haircut - $110 - $115", add-on alternatives | 19 prices; ranges kept as ranges |
+| square.site booking page (Square Online) | name / description / price / "· 1 hour" in separate elements | 17 of 17 prices with durations (before the fix: 0) |
+| havegoodnail.com/services (Squarespace) | menu tabs; price printed before and after each title | 35 prices, each with its own item and section ("PEDICURE — Classic"); before the fix, prices attached to the previous item's title |
+
+**slice 7 live research run** (ZIP 98501, 4 mi, demo workspace): 31 businesses found on
+OpenStreetMap (all new), 36 within the radius, 5 with websites, all 5 read: 2 with prices
+(79 saved, 48 for services the demo doesn't offer, 8 unrecognised amounts dropped), 2 with no prices
+online, 1 asks robots not to read it. The update check reported "No update information is published
+yet" (no 0.2.0 release with latest.json exists yet), as designed.
+
+**In-app update test details.** The AppImages were debug builds made in the Fedora toolbox with
+`--config` setting the version, `createUpdaterArtifacts`, the test public key and
+`http://127.0.0.1:8765/latest.json` (with `dangerousInsecureTransportProtocol`, test only); the
+script serves `latest.json` with a `linux-x86_64-appimage` entry. Found while testing: an AppImage
+carries its own WebKitGTK, so it must be driven by a matching WebKitWebDriver (the Ubuntu-built one
+couldn't be automated from Fedora); and `app_status` reports the Cargo version while the updater
+uses `tauri.conf.json`'s, so CI now refuses a tag unless `package.json`, `Cargo.toml` and
+`tauri.conf.json` all match it.
+
+**Not validated here:** installing an update on Windows (NSIS/MSI) and macOS (the plugin's
+`.app` replacement), and `.deb`/`.rpm` installs through `pkexec` (they need an interactive password).
+CI proves those packages build and are signed into `latest.json`; the first real check happens when
+a 0.2.x release is published and an installed 0.2.0 updates from it.
+
+## 0.1.0 (2026-10-04)
+
 Date: 2026-10-04. Host: Fedora 44 Workstation (x86_64, Wayland). Builds and tests ran in rootless
 toolbox containers: `srm-fedora` (Fedora 44, WebKitGTK 2.54) and `srm-ubuntu` (Ubuntu 22.04,
 WebKitGTK 2.50, glibc 2.35). Install tests used separate clean containers (`srm-fedora-clean`,
 `srm-ubuntu22-clean`, `srm-ubuntu24-clean`). Rust 1.99, Node 22.23, Tauri 2.12.
 
-## Summary
+### Summary
 
 | Check | Result |
 |---|---|
@@ -21,7 +82,7 @@ WebKitGTK 2.50, glibc 2.35). Install tests used separate clean containers (`srm-
 | Windows installer (`…_x64-setup.exe`): cross-compiled on Linux | **Built**; the Rust suite compiled for Windows passed under Wine (88/88); silent install and uninstall worked under Wine. The app itself has **not** been run on Windows |
 | Windows and macOS on GitHub Actions runners ([CI run #2](https://github.com/fleetwoodjohnr/salon-management/actions/runs/37251648909), commit `aee9250`) | **Passed**: Rust tests on Windows and macOS; NSIS, MSI and universal `.dmg` built; Windows silent install plus launch, and macOS launch with signature and architecture checks |
 
-## Automated tests (Rust)
+### Automated tests (Rust)
 
 Domain (pure calculation) tests:
 - **Units**: exact factors (oz, lb, fl oz, gal; 128 fl oz = 1 gal, 16 oz = 1 lb), compatible
@@ -83,7 +144,7 @@ Database/integration tests (in-memory SQLite with all migrations):
 - **Demo data**: two months generated through the normal code paths; report groupings reconcile and
   every product's ledger sums to its stored quantity and value.
 
-## Large dataset (release build)
+### Large dataset (release build)
 
 `cargo test --release large_dataset -- --ignored --nocapture` generates two years of history
 (about 16 sales per open day):
@@ -95,7 +156,7 @@ Database/integration tests (in-memory SQLite with all migrations):
 | Two-year report (3 groupings, weekly trend, prior period) | 0.43 s |
 | Product list + 2,000-row sales list | 8 ms |
 
-## Real desktop app end-to-end
+### Real desktop app end-to-end
 
 Scripts in `e2e/` drive the built Linux binary through `tauri-driver` and WebKitWebDriver on a
 private Xvfb display, taking screenshots in light and dark themes. Each script relaunches the app on
@@ -123,7 +184,7 @@ time-zone options, "−$0.00" and plural wording.
 the app (confirmed with `xwininfo`). Its contents didn't paint on the bare virtual display (no
 printing services in the container), so saving a PDF through the dialog was not automated.
 
-## Packaging
+### Packaging
 
 All packages were built from the final source. It differs from the last end-to-end run only by one
 demo-data restock quantity, covered by the `demo_seed_is_consistent` test. "Launch" means: start
@@ -139,7 +200,7 @@ screenshot of the welcome screen.
 
 Package sizes include the bundled offline Census Gazetteer files (about 2 MB).
 
-## Windows and macOS
+### Windows and macOS
 
 **Windows, cross-compiled here** (`scripts/build-windows.sh`: cargo-xwin, MSVC target, clang/lld,
 NSIS 3.11 in the Fedora toolbox):
@@ -183,7 +244,7 @@ macOS-specific changes made without being able to run them:
 - Ad-hoc signing, so Apple Silicon will start the app.
 - ⌘ instead of Ctrl in the shortcut hint.
 
-## Not tested
+### Not tested
 
 - **Windows and macOS beyond the CI smoke checks above**: no end-to-end workflow, printing, keyring
   or hands-on use on those systems; no Windows 10/11 desktop (the CI runner is Windows Server).

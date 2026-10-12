@@ -11,7 +11,7 @@ are enforced, writes are transactional, and the journal is WAL with `synchronous
 - Timestamps: UTC ISO-8601 text. Business dates: local `YYYY-MM-DD`. Appointment times: local
   `YYYY-MM-DDTHH:MM`.
 - Rows that history depends on are archived (`archived_at`), not deleted.
-- `PRAGMA user_version` holds the schema version (currently 6).
+- `PRAGMA user_version` holds the schema version (currently 7).
 
 ## Migrations
 
@@ -23,6 +23,7 @@ are enforced, writes are transactional, and the journal is WAL with `synchronous
 | 4 | `004_providers.sql` | provider response cache, daily usage, event log |
 | 5 | `005_sales.sql` | clients, formulas + versions, estimates, appointments, sales, sale lines, product usage, refunds, payments, expenses |
 | 6 | `006_market_dashboards.sql` | competitors, observed prices, saved dashboards |
+| 7 | `007_market_research.sql` | website prices (rebuilds `market_observations` to allow `web_extracted` and add provenance), research runs, per-page website checks |
 
 Each migration runs in its own transaction after an automatic backup; a foreign-key check runs
 afterwards. Tests apply every migration from an empty database and upgrade from each earlier version.
@@ -82,9 +83,16 @@ afterwards. Tests apply every migration from an empty database and upgrade from 
 - `expenses` — date, category, vendor, amount, receipt, void flag.
 
 **Market and dashboards**
-- `competitors` — source (manual / OpenStreetMap / CSV) and OSM id for de-duplication.
-- `market_observations` — business, matched service, price type and range, attributes (length,
-  level, duration, inclusions), source URL, date, excluded flag.
+- `competitors` — source (manual / OpenStreetMap / CSV), source reference (OSM id, or `web:<host>`
+  for a business added by website) for de-duplication.
+- `market_observations` — business, matched service and how it was matched (`match_method`: by you,
+  inferred, none), price type and range, attributes (length, level, duration, inclusions), source
+  type (`user_observed`, `csv_import`, `web_extracted`), source URL, date, excluded flag; for website
+  prices also the time read (`retrieved_at`), normalised service (`canonical`, `category`),
+  description and the exact text it was read from (`raw_text`).
+- `research_runs` — each search: centre, radius, business types, status and a JSON coverage summary.
+- `research_pages` — the latest website check of each competitor, one row per page: outcome, HTTP
+  status, prices found, services listed "price on consultation", note, time.
 - `dashboards` — saved views: layout and filters as JSON.
 
 **Providers**

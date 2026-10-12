@@ -11,6 +11,15 @@ export interface WorkspaceInfo {
   kind: WorkspaceKind;
   created_at: string;
 }
+export type DistanceUnit = "mi" | "km";
+/** App-wide preferences (preferences.json in the data folder). Distances are always km. */
+export interface Prefs {
+  distance_unit: DistanceUnit;
+  auto_update_check: boolean;
+  last_update_check: string | null;
+  research_radius_km: number;
+  research_types: string[];
+}
 export interface AppStatus {
   app_version: string;
   schema_version: number;
@@ -1206,6 +1215,7 @@ export interface MarketComparison {
   q1: Dec | null;
   q3: Dec | null;
   n: number;
+  businesses: number;
   quality: string;
 }
 export interface Snapshot {
@@ -1231,6 +1241,13 @@ export interface CompetitorInput {
   phone: string;
   notes: string;
 }
+export type SiteStatus = "prices_found" | "no_prices" | "robots_disallowed" | "terms_restricted" | "blocked" | "rate_limited" | "unreachable" | "http_error" | "not_html";
+export interface SiteCheck {
+  status: SiteStatus;
+  checked_at: string;
+  prices_found: number;
+  note: string;
+}
 export interface Competitor {
   input: CompetitorInput;
   source: "manual" | "osm" | "csv";
@@ -1239,6 +1256,8 @@ export interface Competitor {
   archived: boolean;
   distance_km: number | null;
   observations: number;
+  /** Latest automatic check of the website; null = never checked. */
+  research: SiteCheck | null;
 }
 export interface ObservationInput {
   id: number | null;
@@ -1256,13 +1275,23 @@ export interface ObservationInput {
   observed_on: string;
   notes: string;
 }
+export type SourceType = "user_observed" | "csv_import" | "web_extracted";
 export interface Observation {
   input: ObservationInput;
-  source_type: "user_observed" | "csv_import";
+  source_type: SourceType;
   competitor_name: string;
   service_name: string | null;
   excluded: boolean;
   distance_km: number | null;
+  /** How the match to your service was made: by you, inferred automatically, or none. */
+  match_method: "user" | "auto" | "none";
+  /** UTC time the web page was read (website prices only). */
+  retrieved_at: string | null;
+  category: string;
+  canonical: string;
+  description: string;
+  /** Exact text the price was read from (website prices only). */
+  raw_text: string;
 }
 export interface MarketStats {
   n: number;
@@ -1273,6 +1302,7 @@ export interface MarketStats {
   q3: Dec;
   p90: Dec;
   max: Dec;
+  mean: Dec;
   median_age_days: number;
   newest: string;
   oldest: string;
@@ -1294,8 +1324,25 @@ export interface MarketEvidenceView {
   conflict: string | null;
   cpi_adjusted_median: Dec | null;
   cpi_note: string | null;
+  your_price: Dec | null;
+  your_percentile: number | null;
+  recommendation: Recommendation;
 }
-export interface EvidenceQuery {
+/** Observed market price at your position vs your cost-based target, combined. */
+export interface Recommendation {
+  market_price: Dec | null;
+  cost_target: Dec | null;
+  recommended: Dec | null;
+  basis: "market" | "cost" | "none";
+  explanation: string;
+}
+export interface MarketFilters {
+  competitor_ids?: number[] | null;
+  source_types?: SourceType[] | null;
+  price_min?: Dec | null;
+  price_max?: Dec | null;
+}
+export interface EvidenceQuery extends MarketFilters {
   service_id: number;
   max_age_days: number | null;
   radius_km: number | null;
@@ -1304,6 +1351,104 @@ export interface EvidenceQuery {
   include_starting_at: boolean;
   position: Position | null;
   target_price: Dec | null;
+}
+export interface OverviewQuery extends MarketFilters {
+  max_age_days: number | null;
+  radius_km: number | null;
+  include_starting_at: boolean;
+  category: string | null;
+}
+export interface OverviewRow {
+  service_id: number | null;
+  canonical: string | null;
+  name: string;
+  category: string;
+  your_price: Dec | null;
+  target_price: Dec | null;
+  position: Position | null;
+  quality: "none" | "low" | "medium" | "high";
+  stats: MarketStats | null;
+  observations: number;
+  your_percentile: number | null;
+  recommendation: Recommendation | null;
+  prices: Dec[];
+}
+
+// ---------- market research runs ----------
+export type ResearchCenter = { kind: "location"; id: number } | { kind: "zip"; zip: string } | { kind: "city"; city: string; state: string };
+export interface ResearchParams {
+  center: ResearchCenter;
+  radius_km: number;
+  types: string[];
+  check_websites: boolean;
+  refresh: boolean;
+}
+export interface SiteLine {
+  competitor_id: number;
+  name: string;
+  url: string;
+  status: SiteStatus;
+  prices: number;
+  note: string;
+}
+export interface SourceCheck {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+export interface ResearchSummary {
+  center_label: string;
+  radius_km: number;
+  types: string[];
+  sources: SourceCheck[];
+  discovered: number;
+  unnamed: number;
+  added: number;
+  merged: number;
+  in_radius: number;
+  no_location: number;
+  with_website: number;
+  websites_checked: number;
+  skipped_recent: number;
+  not_checked_limit: number;
+  with_prices: number;
+  prices_saved: number;
+  unmatched_prices: number;
+  unrecognized: number;
+  consultation_only: number;
+  site_statuses: Record<string, number>;
+}
+export interface ResearchProgress {
+  run_id: number;
+  running: boolean;
+  stage: "locating" | "discovering" | "selecting" | "checking_websites" | "done" | "cancelled" | "failed";
+  message: string;
+  sites_total: number;
+  sites_done: number;
+  current: string[];
+  sites: SiteLine[];
+  summary: ResearchSummary;
+  error: string | null;
+}
+export interface ResearchRun {
+  id: number;
+  started_at: string;
+  finished_at: string | null;
+  status: "running" | "done" | "cancelled" | "failed";
+  center_label: string;
+  radius_km: number;
+  types: string[];
+  summary: ResearchSummary | null;
+  error: string | null;
+}
+export interface ResearchPage {
+  url: string;
+  status: SiteStatus;
+  http_status: number | null;
+  prices_found: number;
+  consultation: string[];
+  note: string;
+  checked_at: string;
 }
 export interface ObservationMapping {
   business: number | null;

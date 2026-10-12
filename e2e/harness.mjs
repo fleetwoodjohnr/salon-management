@@ -23,7 +23,7 @@ export function stopDisplay() {
   xvfb = undefined;
 }
 
-export async function launch({ dataDir, port = 4444 }) {
+export async function launch({ dataDir, port = 4444, bin = BIN }) {
   await startDisplay();
   mkdirSync(dataDir, { recursive: true });
   const env = { ...process.env, SRM_DATA_DIR: dataDir, GDK_BACKEND: "x11", WEBKIT_DISABLE_DMABUF_RENDERER: "1" };
@@ -37,7 +37,7 @@ export async function launch({ dataDir, port = 4444 }) {
       hostname: "127.0.0.1",
       port,
       logLevel: "error",
-      capabilities: { "tauri:options": { application: BIN } },
+      capabilities: { "tauri:options": { application: bin } },
     });
   } catch (e) {
     driver.kill();
@@ -67,6 +67,13 @@ export async function clickText(browser, text) {
   if (!(await el.isExisting())) el = await browser.$(`//*[normalize-space(text())=${t}]`);
   await el.waitForClickable({ timeout: 10000 });
   await el.click();
+}
+
+/** Click the <label> with exactly this text (Mantine switches and segmented controls, whose labels
+ *  WebKitWebDriver doesn't consider clickable). */
+export async function clickLabel(browser, text) {
+  await browser.waitUntil(async () => browser.execute((t) => [...document.querySelectorAll("label")].some((l) => l.textContent.trim() === t), text), { timeout: 10000, timeoutMsg: `Label not found: ${text}` });
+  await browser.execute((t) => [...document.querySelectorAll("label")].find((l) => l.textContent.trim() === t).click(), text);
 }
 
 export async function inputFor(browser, label) {

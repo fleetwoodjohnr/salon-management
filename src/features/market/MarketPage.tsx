@@ -1,6 +1,6 @@
-import { Alert, Anchor, Badge, Button, Grid, Group, Modal, NavLink, NumberInput, Paper, ScrollArea, Select, SimpleGrid, Stack, Table, Tabs, Text, TextInput, Textarea, Title } from "@mantine/core";
+import { Alert, Anchor, Badge, Button, Grid, Group, Modal, NavLink, NumberInput, Paper, ScrollArea, Select, SimpleGrid, Stack, Table, Tabs, Text, TextInput, Textarea, Title, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconFileImport, IconMapSearch, IconPlus } from "@tabler/icons-react";
+import { IconFileImport, IconMapSearch, IconPlus, IconWorldWww } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -9,13 +9,18 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { call, errorMessage, isAppError } from "../../api/ipc";
 import { useAction, useCmd } from "../../api/queries";
-import type { Competitor, CompetitorInput, CsvTable, LocalContext, ObsImportRow, ObservationInput, ObservationMapping, ProfileView, ServiceSummary } from "../../api/types";
+import type { Competitor, CompetitorInput, CsvTable, LocalContext, ObsImportRow, ObservationInput, ObservationMapping, ProfileView, ResearchPage, ServiceSummary, ServiceView, SiteLine } from "../../api/types";
 import { DecimalInput } from "../../components/DecimalInput";
+import { DistanceInput } from "../../components/DistanceInput";
 import { PageHeader } from "../../components/PageHeader";
 import { QueryState } from "../../components/QueryState";
 import { useToday } from "../../lib/dates";
-import { money } from "../../lib/format";
+import { fmtDistance, useDistanceUnit } from "../../lib/distance";
+import { isoToLocal, money } from "../../lib/format";
+import { siteStatus } from "./labels";
 import { MarketEvidence } from "./MarketEvidence";
+import { OverviewTab } from "./OverviewTab";
+import { AddWebsite, MARKET_KEYS, ResearchTab } from "./ResearchTab";
 
 function ObservationModal({ value, onClose }: { value: ObservationInput | null; onClose: () => void }) {
   const [o, setO] = useState<ObservationInput | null>(value);
@@ -91,8 +96,10 @@ function PricesTab() {
   const profiles = useCmd<ProfileView[]>("profiles_list", { includeArchived: false });
   const sid = Number(params.get("service")) || services.data?.[0]?.id || 0;
   const svc = services.data?.find((s) => s.id === sid);
+  const sv = useCmd<ServiceView>("service_get", { id: sid }, sid > 0);
   const [obs, setObs] = useState<ObservationInput | null>(null);
-  const position = profiles.data?.[0]?.data.position ?? "standard";
+  // This service's own market position: its override, else its work profile's.
+  const position = sv.data?.input.overrides.position ?? profiles.data?.find((p) => p.id === sv.data?.input.profile_id)?.data.position ?? "standard";
   return (
     <Grid gap="lg">
       <Grid.Col span={{ base: 12, lg: 3 }}>
@@ -131,54 +138,126 @@ function PricesTab() {
 
 const blankComp: CompetitorInput = { id: null, name: "", address: "", city: "", state: "", postal_code: "", latitude: null, longitude: null, website: "", phone: "", notes: "" };
 
+/** Every page looked at on a competitor's website, with what was found or why not. */
+function PagesDetail({ c }: { c: Competitor }) {
+  const q = useCmd<ResearchPage[]>("competitor_pages", { id: c.input.id });
+  return (
+    <QueryState loading={q.isLoading} error={q.error}>
+      {() =>
+        q.data!.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            This website hasn't been checked yet.
+          </Text>
+        ) : (
+          <Stack gap="xs">
+            {q.data!.map((p) => (
+              <Paper key={p.url + p.status} p="xs" withBorder>
+                <Group justify="space-between" wrap="nowrap">
+                  <Anchor size="xs" onClick={() => openUrl(p.url)} style={{ wordBreak: "break-all" }}>
+                    {p.url}
+                  </Anchor>
+                  <Badge size="xs" color={siteStatus[p.status].color}>
+                    {siteStatus[p.status].label}
+                    {p.prices_found ? ` · ${p.prices_found}` : ""}
+                  </Badge>
+                </Group>
+                <Text size="xs" c="dimmed">
+                  {p.note || siteStatus[p.status].help} Checked {isoToLocal(p.checked_at)}.
+                </Text>
+                {p.consultation.length > 0 && <Text size="xs">Price on consultation: {p.consultation.join(", ")}</Text>}
+              </Paper>
+            ))}
+          </Stack>
+        )
+      }
+    </QueryState>
+  );
+}
+
 function CompetitorsTab() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const q = useCmd<Competitor[]>("competitors_list", { includeArchived: false });
+  const unit = useDistanceUnit();
   const [edit, setEdit] = useState<CompetitorInput | null>(null);
-  const [radius, setRadius] = useState(5);
-  const [busy, setBusy] = useState(false);
+  const [details, setDetails] = useState<Competitor | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [checking, setChecking] = useState<number | null>(null);
+  const [f, setF] = useState<{ text: string; source: string | null; status: string | null; within: number | null }>({ text: "", source: null, status: null, within: null });
   const save = useAction<{ competitor: CompetitorInput }, number>("competitor_save", { invalidate: ["competitors_list"], success: "Business saved" });
-  async function discover() {
-    setBusy(true);
+  async function check(c: Competitor) {
+    setChecking(c.input.id);
     try {
-      const r = await call<{ found: number; added: number; updated: number; attribution: string }>("competitors_discover", { radiusKm: radius });
-      notifications.show({ message: `Found ${r.found} salons on OpenStreetMap: ${r.added} added, ${r.updated} refreshed. ${r.attribution}`, color: "teal", autoClose: 10000 });
-      qc.invalidateQueries({ queryKey: ["competitors_list"] });
+      const r = await call<SiteLine>("research_competitor", { id: c.input.id });
+      notifications.show({ message: `${c.input.name}: ${siteStatus[r.status].label}${r.prices ? `, ${r.prices} prices saved` : ""}. ${r.note}`, color: r.prices ? "teal" : siteStatus[r.status].color, autoClose: 8000 });
+      MARKET_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     } catch (e) {
-      notifications.show({ title: "Couldn't search nearby", message: errorMessage(e), color: "red", autoClose: 12000 });
+      notifications.show({ title: "Couldn't check the website", message: errorMessage(e), color: "red", autoClose: 10000 });
     } finally {
-      setBusy(false);
+      setChecking(null);
     }
   }
+  const rows = (q.data ?? []).filter(
+    (c) =>
+      (!f.text || `${c.input.name} ${c.input.city} ${c.input.address}`.toLowerCase().includes(f.text.toLowerCase())) &&
+      (!f.source || c.source === f.source) &&
+      (!f.status || (f.status === "never" ? !c.research && c.input.website : f.status === "no_website" ? !c.input.website : c.research?.status === f.status)) &&
+      (f.within == null || (c.distance_km != null && c.distance_km <= f.within)),
+  );
   return (
     <Stack>
       <Paper p="md">
-        <Group justify="space-between" align="flex-end">
-          <Group align="flex-end" gap="sm">
-            <NumberInput label="Find hair and beauty salons within" suffix=" km" min={0.5} max={25} step={0.5} w={240} value={radius} onChange={(v) => setRadius(Number(v) || 5)} />
-            <Button leftSection={<IconMapSearch size={16} />} loading={busy} onClick={discover}>
-              Search OpenStreetMap
+        <Group justify="space-between" align="flex-end" wrap="wrap">
+          <Group gap="sm" align="flex-end" wrap="wrap">
+            <TextInput size="xs" label="Search" w={180} value={f.text} onChange={(e) => setF({ ...f, text: e.currentTarget.value })} />
+            <Select
+              size="xs"
+              label="Source"
+              w={150}
+              clearable
+              placeholder="All"
+              data={[
+                { value: "osm", label: "OpenStreetMap" },
+                { value: "manual", label: "Added by you" },
+                { value: "csv", label: "Imported" },
+              ]}
+              value={f.source}
+              onChange={(v) => setF({ ...f, source: v })}
+            />
+            <Select
+              size="xs"
+              label="Website"
+              w={190}
+              clearable
+              placeholder="Any"
+              data={[{ value: "never", label: "Not checked yet" }, { value: "no_website", label: "No website known" }, ...Object.entries(siteStatus).map(([value, v]) => ({ value, label: v.label }))]}
+              value={f.status}
+              onChange={(v) => setF({ ...f, status: v })}
+            />
+            <DistanceInput size="xs" label="Within" w={110} minKm={0} placeholder="Any" km={f.within} onChange={(km) => setF({ ...f, within: km })} />
+          </Group>
+          <Group gap="xs">
+            <Button variant="default" leftSection={<IconWorldWww size={16} />} onClick={() => setAdding(true)}>
+              Add by website
+            </Button>
+            <Button variant="default" leftSection={<IconPlus size={16} />} onClick={() => setEdit({ ...blankComp })}>
+              Add a business
+            </Button>
+            <Button leftSection={<IconMapSearch size={16} />} onClick={() => navigate("/market?tab=research")}>
+              Find competitors
             </Button>
           </Group>
-          <Button variant="default" leftSection={<IconPlus size={16} />} onClick={() => setEdit({ ...blankComp })}>
-            Add a business
-          </Button>
         </Group>
-        <Text size="xs" c="dimmed" mt="xs">
-          Sends only your location's coordinates to the public Overpass service. OpenStreetMap lists names and places, not prices; record prices yourself from each business's menu.
-          Map data © OpenStreetMap contributors (ODbL).
-        </Text>
       </Paper>
       <QueryState loading={q.isLoading} error={q.error}>
         {() => (
           <DataTable
             withTableBorder
             borderRadius="lg"
-            records={q.data!}
+            records={rows}
             idAccessor={(c) => c.input.id!}
-            minHeight={q.data!.length ? undefined : 140}
-            noRecordsText="No competitors yet"
+            minHeight={rows.length ? undefined : 140}
+            noRecordsText={q.data!.length ? "No competitors match these filters" : "No competitors yet. Find them on the Research tab."}
             columns={[
               {
                 accessor: "name",
@@ -194,18 +273,48 @@ function CompetitorsTab() {
                   </div>
                 ),
               },
-              { accessor: "distance", title: "Distance", textAlign: "right", render: (c) => (c.distance_km != null ? `${c.distance_km.toFixed(1)} km` : "—") },
+              { accessor: "distance", title: "Distance", textAlign: "right", render: (c) => fmtDistance(c.distance_km, unit) },
               { accessor: "source", title: "Source", render: (c) => <Badge color={c.source === "osm" ? "green" : "gray"}>{c.source === "osm" ? "OpenStreetMap" : c.source === "csv" ? "Imported" : "Added by you"}</Badge> },
+              {
+                accessor: "research",
+                title: "Website check",
+                render: (c) =>
+                  !c.input.website ? (
+                    <Text size="xs" c="dimmed">
+                      No website known
+                    </Text>
+                  ) : c.research ? (
+                    <Tooltip label={`${c.research.note || siteStatus[c.research.status].help} Checked ${isoToLocal(c.research.checked_at)}.`} multiline w={300}>
+                      <Badge size="sm" variant="light" color={siteStatus[c.research.status].color} style={{ cursor: "pointer" }} onClick={() => setDetails(c)}>
+                        {siteStatus[c.research.status].label}
+                      </Badge>
+                    </Tooltip>
+                  ) : (
+                    <Text size="xs" c="dimmed">
+                      Not checked yet
+                    </Text>
+                  ),
+              },
               { accessor: "observations", title: "Prices", textAlign: "right" },
               {
                 accessor: "web",
                 title: "",
                 render: (c) => (
-                  <Group gap={6} justify="flex-end">
+                  <Group gap={6} justify="flex-end" wrap="nowrap">
                     {c.input.website && (
                       <Anchor size="xs" onClick={() => openUrl(c.input.website)}>
                         Website
                       </Anchor>
+                    )}
+                    {c.input.website && (
+                      <Button size="compact-xs" variant="subtle" loading={checking === c.input.id} disabled={checking != null && checking !== c.input.id} onClick={() => check(c)}>
+                        Check prices
+                      </Button>
+                    )}
+                    {c.research && (
+                      <Button size="compact-xs" variant="subtle" onClick={() => setDetails(c)}>
+                        Details
+                      </Button>
                     )}
                     <Button size="compact-xs" variant="subtle" onClick={() => setEdit(c.input)}>
                       Edit
@@ -227,7 +336,8 @@ function CompetitorsTab() {
               <TextInput label="State" value={edit.state} onChange={(e) => setEdit({ ...edit, state: e.currentTarget.value })} />
               <TextInput label="ZIP" value={edit.postal_code} onChange={(e) => setEdit({ ...edit, postal_code: e.currentTarget.value })} />
             </SimpleGrid>
-            <TextInput label="Website" value={edit.website} onChange={(e) => setEdit({ ...edit, website: e.currentTarget.value })} />
+            <TextInput label="Website" placeholder="https://…" value={edit.website} onChange={(e) => setEdit({ ...edit, website: e.currentTarget.value })} />
+            <TextInput label="Phone" value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.currentTarget.value })} />
             <Textarea label="Notes" value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.currentTarget.value })} />
             <Group justify="flex-end">
               <Button onClick={() => save.mutate({ competitor: edit }, { onSuccess: () => setEdit(null) })} loading={save.isPending}>
@@ -237,12 +347,22 @@ function CompetitorsTab() {
           </Stack>
         )}
       </Modal>
+      <Modal opened={!!details} onClose={() => setDetails(null)} title={details ? `${details.input.name}: website check` : ""} size="lg">
+        {details && <PagesDetail c={details} />}
+      </Modal>
+      <Modal opened={adding} onClose={() => setAdding(false)} title="Add a competitor by website" size="lg">
+        <AddWebsite />
+      </Modal>
       <Text size="xs" c="dimmed">
-        Prices you record appear under each service on the{" "}
+        Prices appear under each service on the{" "}
         <Anchor size="xs" onClick={() => navigate("/market?tab=prices")}>
           Prices
         </Anchor>{" "}
-        tab.
+        tab and side by side on the{" "}
+        <Anchor size="xs" onClick={() => navigate("/market?tab=overview")}>
+          Overview
+        </Anchor>
+        .
       </Text>
     </Stack>
   );
@@ -480,15 +600,23 @@ export function MarketPage() {
     <>
       <PageHeader
         title="Market"
-        description="Prices you observe at local businesses, kept separate from official statistics and from modeled estimates. No free service provides salon menu prices, so this evidence is collected by you."
+        description="Local competitors and the prices they advertise, read from their own websites or recorded by you, each with its source and date. Kept separate from official statistics and from calculated recommendations."
       />
-      <Tabs value={params.get("tab") ?? "prices"} onChange={(v) => setParams({ tab: v ?? "prices" }, { replace: true })} keepMounted={false}>
+      <Tabs value={params.get("tab") ?? "overview"} onChange={(v) => setParams({ tab: v ?? "overview" }, { replace: true })} keepMounted={false}>
         <Tabs.List mb="md">
+          <Tabs.Tab value="overview">Overview</Tabs.Tab>
+          <Tabs.Tab value="research">Research</Tabs.Tab>
           <Tabs.Tab value="prices">Prices</Tabs.Tab>
           <Tabs.Tab value="competitors">Competitors</Tabs.Tab>
           <Tabs.Tab value="import">Import prices</Tabs.Tab>
           <Tabs.Tab value="context">Local context</Tabs.Tab>
         </Tabs.List>
+        <Tabs.Panel value="overview">
+          <OverviewTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="research">
+          <ResearchTab />
+        </Tabs.Panel>
         <Tabs.Panel value="prices">
           <PricesTab />
         </Tabs.Panel>

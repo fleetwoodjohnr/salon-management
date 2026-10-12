@@ -1,6 +1,6 @@
-// Slice 5: dashboard widgets, layout edit, competitor discovery (live OSM), observed prices →
+// Slice 5: dashboard widgets, layout edit, competitor discovery (live OSM, map only), observed prices →
 // evidence + conflict on Pricing, reports and sales tax.
-import { launch, clickText, fill, choose, waitText, stopDisplay, bodyText, go as goTo } from "./harness.mjs";
+import { launch, clickText, clickLabel, fill, choose, waitText, stopDisplay, bodyText, go as goTo } from "./harness.mjs";
 import assert from "node:assert/strict";
 const dataDir = process.argv[2];
 const app = await launch({ dataDir });
@@ -20,11 +20,13 @@ try {
   await (await b.$('[aria-label="Remove Your prices vs the local market"]')).click();
   await clickText(b, "Save layout");
   await waitText(b, 'Saved view "Overview"');
-  // Competitors near the geocoded location
-  await go("/market?tab=competitors");
-  await waitText(b, "Search OpenStreetMap");
-  await clickText(b, "Search OpenStreetMap");
-  await waitText(b, "Found", 60000);
+  // Competitors near the geocoded location: map search only here (reading websites is slice 7)
+  await go("/market?tab=research");
+  await waitText(b, "Start research");
+  await clickLabel(b, "Read competitors' websites for prices");
+  await clickText(b, "Start research");
+  await waitText(b, "Last search", 120000);
+  await waitText(b, "Found on the map");
   await app.shot("51-competitors");
   // Record 4 observed prices from different businesses
   await go("/market?tab=prices");

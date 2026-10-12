@@ -1,6 +1,6 @@
 [package]
 name = "salon-resource-manager"
-version = "0.1.0"
+version = "0.2.0"
 description = "Salon Resource Manager — offline costing, inventory, pricing and sales for salon professionals"
 authors = ["Salon Resource Manager contributors"]
 license = "MIT"
@@ -19,6 +19,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2.13.1"
+tauri-plugin-process = "2.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.40", features = ["bundled"] }
@@ -28,13 +30,15 @@ thiserror = "2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 sha2 = "0.11"
 csv = "1.4"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "query"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "query", "form"] }
 keyring = "4"
-tokio = { version = "1", features = ["sync", "time", "macros"] }
+tokio = { version = "1", features = ["sync", "time", "macros", "net", "rt"] }
+scraper = { version = "0.27", default-features = false }
+regex = "1"
 
 [dev-dependencies]
 rust_decimal_macros = "1.40"
-tokio = { version = "1", features = ["rt", "macros"] }
+tokio = { version = "1", features = ["rt", "macros", "net", "io-util"] }
 
 [profile.release]
 codegen-units = 1

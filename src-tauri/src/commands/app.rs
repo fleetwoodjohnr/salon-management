@@ -133,3 +133,49 @@ pub async fn export_all(state: State<'_, AppState>, path: String) -> AppResult<u
     let p = state.output_path(&path, "zip")?;
     state.read(|c| crate::csvio::export_all(c, &p))
 }
+
+#[tauri::command]
+pub async fn prefs_get(state: State<'_, AppState>) -> AppResult<crate::prefs::Prefs> {
+    Ok(state.prefs())
+}
+
+#[tauri::command]
+pub async fn prefs_set(state: State<'_, AppState>, prefs: crate::prefs::Prefs) -> AppResult<crate::prefs::Prefs> {
+    crate::prefs::save(&state.root, &prefs)?;
+    Ok(state.prefs())
+}
+
+/// Before installing an update: back up the open workspace (updates never touch the data
+/// folder, and a newer data version is migrated with its own backup, but this is cheap insurance).
+#[tauri::command]
+pub async fn update_prepare(state: State<'_, AppState>, version: String) -> AppResult<Option<String>> {
+    if state.current_info().is_none() {
+        return Ok(None);
+    }
+    let tag: String = version.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-')).take(32).collect();
+    let path = state.with(|w| backup::create(&w.conn, &w.info, &state.attachments_dir(&w.info.id), &state.backups_dir(&w.info.id), &format!("pre-update-{tag}")))?;
+    Ok(Some(path.to_string_lossy().into()))
+}
+
+#[derive(Serialize)]
+pub struct InstallInfo {
+    /// How this copy was installed: "appimage", "deb", "rpm", "nsis", "msi", "app", or None for a
+    /// development build or a bare binary (which can't update itself).
+    pub bundle: Option<&'static str>,
+    pub os: &'static str,
+    pub arch: &'static str,
+}
+
+#[tauri::command]
+pub async fn app_install_kind() -> AppResult<InstallInfo> {
+    use tauri::utils::config::BundleType;
+    let bundle = tauri::utils::platform::bundle_type().map(|b| match b {
+        BundleType::AppImage => "appimage",
+        BundleType::Deb => "deb",
+        BundleType::Rpm => "rpm",
+        BundleType::Nsis => "nsis",
+        BundleType::Msi => "msi",
+        BundleType::App | BundleType::Dmg => "app",
+    });
+    Ok(InstallInfo { bundle, os: std::env::consts::OS, arch: std::env::consts::ARCH })
+}
